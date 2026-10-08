@@ -48,14 +48,16 @@ jobs:
           gh release upload "${TAG}" dist/*.deb --repo "${GITHUB_REPOSITORY}" --clobber
 
       - name: Upload to Tencent Cloud COS
+        timeout-minutes: 30
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
         run: |
-          pip install coscmd
+          pip install coscmd -q
           coscmd config -a "${TENCENT_SECRET_ID}" -s "${TENCENT_SECRET_KEY}" -b "ssh-remote-controller-1333945781" -r "ap-beijing"
-          # 上传 deb 安装包
+          # 上传 deb 安装包（GitHub runner 在海外，跨洋上传可能较慢，coscmd 会分片+断点续传）
           for f in dist/*.deb; do
+            echo "上传 $f 到 COS ..."
             coscmd upload "$f" "$(basename "$f")"
           done
           # 记录最新 deb 版本号（供 DownloadToUbuntu.sh 读取）
