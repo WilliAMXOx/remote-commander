@@ -1,0 +1,337 @@
+{
+  "默认库": [
+    {
+      "id": 1784180052215,
+      "name": "查看系统日志",
+      "body": "tail -f /var/log/syslog"
+    },
+    {
+      "id": 1784180052216,
+      "name": "部署更新",
+      "body": "cd /opt/myapp\ngit pull\nnpm install\npm2 restart app"
+    },
+    {
+      "id": 1784180052217,
+      "name": "磁盘与内存",
+      "body": "df -h\nfree -m"
+    },
+    {
+      "id": 1784707056341,
+      "name": "查看IP",
+      "body": "ifconfig"
+    },
+    {
+      "name": "重启机器人服务",
+      "body": "sudo systemctl restart robot.service"
+    }
+  ],
+  "机器人手臂测试用动作": [
+    {
+      "id": 1784180134687,
+      "name": "前置条件",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\nsystemctl is-active robot.service   # 应输出 active"
+    },
+    {
+      "id": 1784180142780,
+      "name": "右臂回零 (`right_arm_home`)",
+      "body": "ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180149406,
+      "name": "右臂正限位 (`right_arm_pos_limit`)",
+      "body": "ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [-3.14, 0.209, -3.14, -2.35, 3.14, -1.571, -1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180177561,
+      "name": "右臂负限位 (`right_arm_neg_limit`)",
+      "body": "ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [3.14, -2.65, 3.14, 2.09, -3.14, 1.571, 1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180183669,
+      "name": "右臂负载 (`right_arm_load_5kg`)",
+      "body": "ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [-1.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180190082,
+      "name": "右臂弯举 (`right_arm_curl`)",
+      "body": "ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [0.0, 0.0, 0.0, -1.5, -3.14, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180306249,
+      "name": "左臂回零 (`left_arm_home`)",
+      "body": "ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180311623,
+      "name": "左臂正限位 (`left_arm_pos_limit`)",
+      "body": "ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [-3.14, -0.209, 3.14, -2.3562, -3.14, -1.571, 1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180320096,
+      "name": "左臂负限位 (`left_arm_neg_limit`)",
+      "body": "ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [3.14, 2.65, -3.14, 2.09, 3.14, 1.571, -1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180342658,
+      "name": "左臂负载 (`left_arm_load_5kg`)",
+      "body": "ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [-1.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784180354187,
+      "name": "左臂弯举 (`left_arm_curl`)",
+      "body": "ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [0.0, 0.0, 0.0, -1.5, 3.14, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    }
+  ],
+  "机器人腰部测试动作": [
+    {
+      "name": "躯干回零 (`waist_body_home`)",
+      "body": "ros2 action send_goal \"/waist_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [waist_joint0, waist_joint1, waist_joint2], points: [{positions: [0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "name": "躯干下蹲 (`waist_body_squat`)",
+      "body": "ros2 action send_goal \"/waist_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [waist_joint0, waist_joint1, waist_joint2], points: [{positions: [-1.2, 2.5, -1.4], time_from_start: {sec: 11, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784183355487,
+      "name": "腰部旋转回零 (`waist_rotation_home`)",
+      "body": "ros2 action send_goal \"/waist_rotation_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [waist_joint3], points: [{positions: [0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784183361455,
+      "name": "腰部旋转正限位 (`waist_rotation_pos_limit`)",
+      "body": "ros2 action send_goal \"/waist_rotation_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [waist_joint3], points: [{positions: [-3.1], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784183370203,
+      "name": "腰部旋转负限位 (`waist_rotation_neg_limit`)",
+      "body": "ros2 action send_goal \"/waist_rotation_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [waist_joint3], points: [{positions: [3.1], time_from_start: {sec: 8, nanosec: 0}}]}}\""
+    }
+  ],
+  "头部测试动作": [
+    {
+      "id": 1784183387035,
+      "name": "头部回零 (`head_home`)",
+      "body": "ros2 action send_goal \"/head_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [head_joint0, head_joint1], points: [{positions: [0.0, 0.0], time_from_start: {sec: 3, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784183390821,
+      "name": "头部正限位 (`head_pos_limit`)",
+      "body": "ros2 action send_goal \"/head_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [head_joint0, head_joint1], points: [{positions: [1.0472, 0.6981], time_from_start: {sec: 3, nanosec: 0}}]}}\""
+    },
+    {
+      "id": 1784183399839,
+      "name": "头部负限位 (`head_neg_limit`)",
+      "body": "ros2 action send_goal \"/head_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [head_joint0, head_joint1], points: [{positions: [-1.0472, -0.2443], time_from_start: {sec: 3, nanosec: 0}}]}}\""
+    }
+  ],
+  "双臂并行动作": [
+    {
+      "id": 1784183434729,
+      "name": "抬起双臂 (`dual_arm_raise`)",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\n(ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\" & ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\" & wait)"
+    },
+    {
+      "id": 1784183453302,
+      "name": "双臂正限位 (`dual_arm_pos_limit`)",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\n(ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [-3.14, -0.209, 3.14, -2.3562, -3.14, -1.571, 1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\" & ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [-3.14, 0.209, -3.14, -2.35, 3.14, -1.571, -1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\" & wait)"
+    },
+    {
+      "id": 1784183463316,
+      "name": "双臂负限位 (`dual_arm_neg_limit`)",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\n(ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [3.14, 2.65, -3.14, 2.09, 3.14, 1.571, -1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\" & ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [3.14, -2.65, 3.14, 2.09, -3.14, 1.571, 1.571], time_from_start: {sec: 8, nanosec: 0}}]}}\" & wait)"
+    },
+    {
+      "id": 1784183473274,
+      "name": "双臂负载 (`dual_arm_load_5kg`)",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\n(ros2 action send_goal \"/left_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [left_arm_joint0, left_arm_joint1, left_arm_joint2, left_arm_joint3, left_arm_joint4, left_arm_joint5, left_arm_joint6], points: [{positions: [-1.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\" & ros2 action send_goal \"/right_arm_controller/follow_joint_trajectory\" control_msgs/action/FollowJointTrajectory \"{trajectory: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, joint_names: [right_arm_joint0, right_arm_joint1, right_arm_joint2, right_arm_joint3, right_arm_joint4, right_arm_joint5, right_arm_joint6], points: [{positions: [-1.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_from_start: {sec: 8, nanosec: 0}}]}}\" & wait)"
+    }
+  ],
+  "Rk部分": [
+    {
+      "id": 1784183524025,
+      "name": "稳定性序列（RK 本机连续）",
+      "body": "curl -sf -m 420 \"http://192.168.8.88:8792/run/stability_squat_10x?series=edu\"\ncurl -sf -m 300 \"http://192.168.8.88:8792/run/stability_waist_rotate_10x?series=edu\"\ncurl -sf -m 420 \"http://192.168.8.88:8792/run/stability_arm_extend_10x?series=edu\""
+    },
+    {
+      "id": 1784183565125,
+      "name": "软急停",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\npkill -f 'ros2 action send_goal.*follow_joint_trajectory' 2>/dev/null || true\nros2 service call /right_arm_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal \"{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}\" 2>/dev/null || true\nros2 service call /left_arm_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal \"{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}\" 2>/dev/null || true\nros2 service call /waist_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal \"{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}\" 2>/dev/null || true\nros2 service call /waist_rotation_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal \"{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}\" 2>/dev/null || true\nros2 service call /head_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal \"{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}\" 2>/dev/null || true\npython3 ~/factory/factory_joint.py stop\ncurl -X POST http://192.168.8.88:8792/stop"
+    },
+    {
+      "id": 1784183587391,
+      "name": "诊断命令（RK）",
+      "body": "source ~/daxbot_base_ws/install/setup.bash\nros2 topic echo /joint_states --once\nros2 action list\nros2 topic list | grep joint_trajectory"
+    },
+    {
+      "id": 1784183613647,
+      "name": "factory_joint 快捷方式（RK）",
+      "body": "python3 ~/factory/factory_joint.py list --series edu\npython3 ~/factory/factory_joint.py run waist_body_home --series edu\npython3 ~/factory/factory_joint.py serve --port 8792\ncurl -sf http://192.168.8.88:8792/health\ncurl -sf -m 60 \"http://192.168.8.88:8792/run/head_home?series=edu\""
+    }
+  ],
+  "吸泵控制": [
+    {
+      "name": "左手吸泵打开",
+      "body": "cd\ncd daxbot_moveit_control\nros2 topic pub -1 /vacuum_valve_ctrl std_msgs/msg/Bool data:\\ true # 吸嘴打开"
+    },
+    {
+      "name": "左手吸泵关闭",
+      "body": "cd\ncd daxbot_moveit_control\nros2 topic pub -1 /vacuum_valve_ctrl std_msgs/msg/Bool data:\\ false # 吸嘴关"
+    },
+    {
+      "name": "右手吸泵打开",
+      "body": "cd\ncd daxbot_moveit_control\nros2 topic pub -1 /sub_vacuum_valve_ctrl std_msgs/msg/Bool data:\\ true # 吸嘴打开"
+    },
+    {
+      "name": "右手吸泵关闭",
+      "body": "cd\ncd daxbot_moveit_control\nros2 topic pub -1 /sub_vacuum_valve_ctrl std_msgs/msg/Bool data:\\ false # 吸嘴关"
+    }
+  ],
+  "灵巧手抓取": [
+    {
+      "id": 1784186274428,
+      "name": "左手抓取",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /execute_right_grasp_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n   \"{box_name: {{item_id}}, arm_name: left, task_hight: 1.05, num: 1, place: False}\""
+    },
+    {
+      "id": 1784186337896,
+      "name": "右手抓取",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /execute_right_grasp_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n   \"{box_name: {{item_id}}, arm_name: right, task_hight: 1.05, num: 1, place: False}\""
+    },
+    {
+      "name": "左手抓取",
+      "body": "cd\ncd daxbot_moveit_control\nros2 service call /execute_right_grasp_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n   \"{box_name: BEVG0000000008, arm_name: left, task_hight: {{height}}, num: 1, place: False}\""
+    },
+    {
+      "name": "左手放下",
+      "body": "ros2 service call /execute_place_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n   \"{box_name: 什锦果仁, num: 1, arm_name: right}\""
+    }
+  ],
+  "药品预包装动作": [
+    {
+      "id": 1784186750796,
+      "name": "source",
+      "body": "cd\ncd daxbot_movit_control\nsource /opt/ros/humble/setup.bash"
+    },
+    {
+      "id": 1784186791952,
+      "name": "预包装抓取",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_prepackaged_grasp_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784186811508,
+      "name": "预包装贴标",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_prepackaged_label_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784186849817,
+      "name": "预包装放下",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_prepackaged_drop_demo std_srvs/srv/Trigger"
+    }
+  ],
+  "搬箱子": [
+    {
+      "id": 1784191776895,
+      "name": "进入命令行",
+      "body": "cd daxbot_moveit_control\nsource install/setup.bash"
+    },
+    {
+      "id": 1784191871384,
+      "name": "冷链箱拿起",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_coldchain_box_up_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784191887834,
+      "name": "冷链箱放下",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_coldchain_box_down_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784191909905,
+      "name": "普通箱拿起",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_general_box_up_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784191941993,
+      "name": "普通箱举起",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_general_box_up_ready_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784191972229,
+      "name": "普通箱放下",
+      "body": "cd\ncd daxbot_movit_control\nros2 service call /set_general_box_down_demo std_srvs/srv/Trigger"
+    },
+    {
+      "id": 1784192007107,
+      "name": "重新启动视觉程序 需等待1min",
+      "body": "cd\ncd foundationpose_ros\n./start_6d.sh"
+    },
+    {
+      "id": 1784192019962,
+      "name": "检查相机占用",
+      "body": "sudo lsof /dev/video*"
+    }
+  ],
+  "RTC电池问题": [
+    {
+      "name": "查询orinRTC电池时间",
+      "body": "sudo dmesg |grep rtc"
+    }
+  ],
+  "机器人视觉问题": [
+    {
+      "name": "检查相机占用",
+      "body": "echo \"nvidia\" | sudo -S bash -c 'lsof /dev/video*'"
+    }
+  ],
+  "京东前置仓": [
+    {
+      "name": "工作环境",
+      "body": "cd\ncd daxbot_moveit_control\nsource install/setup.bash"
+    },
+    {
+      "name": "左手抓取",
+      "body": "# 左手抓取\nros2 service call /set_left_grasp_demo ros_interface_msgs/srv/ExecuteGrasp \"{box_name: MEDI000000032, task_hight: {{height}}, num: 1}\""
+    },
+    {
+      "name": "右手抓取",
+      "body": "# 右手抓取\nros2 service call /set_right_grasp_demo ros_interface_msgs/srv/ExecuteGrasp \"{box_name: MEDI000000025, arm_name: right, task_hight: {{height}}, num: 1, place: False}\""
+    },
+    {
+      "name": "左手放下",
+      "body": "ros2 service call /execute_place_sequence ros_interface_msgs/srv/ExecuteGrasp \"{box_name: 什锦果仁, num: 1, arm_name: left}\""
+    },
+    {
+      "name": "右手放下",
+      "body": "ros2 service call /execute_place_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n   \"{box_name: 什锦果仁, num: 1, arm_name: right}\""
+    },
+    {
+      "name": "打开吸泵",
+      "body": "cd\ncd daxbot_moveit_control\nros2 topic pub -1 /vacuum_valve_ctrl std_msgs/msg/Bool data:\\ true\nros2 topic pub -1 /sub_vacuum_valve_ctrl std_msgs/msg/Bool data:\\ true"
+    },
+    {
+      "name": "关闭吸泵",
+      "body": "cd\ncd daxbot_moveit_control\nros2 topic pub -1 /vacuum_valve_ctrl std_msgs/msg/Bool data:\\ false\nros2 topic pub -1 /sub_vacuum_valve_ctrl std_msgs/msg/Bool data:\\ false"
+    }
+  ],
+  "超市发": [
+    {
+      "name": "蛋黄酥",
+      "body": "ros2 service call /execute_grasp_dhs_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n\"{box_name: BAKE0000000001, arm_name: right, task_hight: 0.55}\""
+    },
+    {
+      "name": "袋子放置",
+      "body": "ros2 service call /execute_placedz_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n\"{box_name: 什锦果仁, num: 1, arm_name: right}\""
+    },
+    {
+      "name": "84放置",
+      "body": "ros2 service call /execute_place84_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n\"{box_name: 什锦果仁, num: 1, arm_name: right}\""
+    },
+    {
+      "name": "拿84",
+      "body": "ros2 service call /execute_grasp_84_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n\"{box_name: BAKE0000000001, arm_name: right, task_hight: 0.55}\""
+    },
+    {
+      "name": "拿山楂",
+      "body": "ros2 service call /execute_grasp_sz_sequence ros_interface_msgs/srv/ExecuteGrasp \\\n\"{box_name: BAKE0000000001, arm_name: right, task_hight: 1.35}\""
+    }
+  ]
+}

@@ -1,0 +1,2716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Commander - 远程终端控制台</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23f3f3f3'/%3E%3Cpath d='M37 5 L15 37 h13 L25 59 L50 25 H36 z' fill='%23000'/%3E%3C/svg%3E">
+    <!-- xterm 样式（本地打包，离线/内网可用） -->
+    <link rel="stylesheet" href="vendor/xterm.css" />
+    <!-- JS 依赖库（本地打包，离线/内网可用） -->
+    <script src="vendor/xterm.js"></script>
+    <script src="vendor/xterm-addon-fit.js"></script>
+    <script src="vendor/xterm-addon-web-links.js"></script>
+    <style>
+        /* 本地字体（内网/离线可用，不用 CDN） */
+        @font-face { font-family: 'Exo'; src: url('vendor/fonts/exo-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+        @font-face { font-family: 'Exo'; src: url('vendor/fonts/exo-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+        @font-face { font-family: 'Exo'; src: url('vendor/fonts/exo-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+        @font-face { font-family: 'Exo'; src: url('vendor/fonts/exo-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+        @font-face { font-family: 'Roboto Mono'; src: url('vendor/fonts/roboto-mono-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+        @font-face { font-family: 'Roboto Mono'; src: url('vendor/fonts/roboto-mono-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+        @font-face { font-family: 'Roboto Mono'; src: url('vendor/fonts/roboto-mono-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+        @font-face { font-family: 'Roboto Mono'; src: url('vendor/fonts/roboto-mono-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+        :root {
+            --bg-main: #0B0B10;
+            --bg-panel: #131318;
+            --bg-card: #1E1E23;
+            --bg-input: #18181E;
+            --bg-hover: #2A2A32;
+            --text-white: #F8FAFC;
+            --text-gray: #94A3B8;
+            --text-muted: #64748B;
+            --line-base: #2A2A32;
+            --line-focus: #F8FAFC;
+            --success: #3B82F6;
+            --warn: #FACC15;
+            --danger: #EF4444;
+            --danger-bg: rgba(239,68,68,0.12);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --border-thin: 1px solid var(--line-base);
+            --border-focus: 1px solid var(--line-focus);
+            --shadow-hard: 0 8px 24px rgba(0,0,0,0.5);
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Exo', 'Roboto Mono', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-main);
+            color: var(--text-white);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            overflow: hidden;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 1780px;
+            height: 100%;
+            max-height: 980px;
+            background: var(--bg-panel);
+            border: var(--border-thin);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-hard);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .app-header {
+            background: var(--bg-card);
+            padding: 10px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: var(--border-thin);
+            flex-shrink: 0;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand .logo {
+            width: 52px;
+            height: 52px;
+            margin-top: 4px;
+            background: transparent;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: #000;
+            box-shadow: none;
+        }
+        .brand .logo img { border-radius: 50%; display: block; }
+        .brand h1 {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-white);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+        }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .btn-emergency {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 12.5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--transition);
+            white-space: nowrap;
+            animation: emergencyPulse 2s infinite;
+        }
+        .btn-emergency:hover { background: var(--danger-bg); box-shadow: 0 0 12px rgba(255,85,85,0.2); }
+        @keyframes emergencyPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-input);
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            border: var(--border-thin);
+            font-size: 12px;
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.disconnected { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+        .dot.connected { background: #4cd137; box-shadow: 0 0 6px #4cd137; }
+        .dot.connecting { background: #fbc531; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.9); }
+        }
+        .label { color: var(--text-gray); font-size: 12px; }
+        .app-body { display: flex; flex: 1; min-height: 0; }
+        .panel-connect {
+            width: 320px;
+            background: var(--bg-panel);
+            padding: 18px;
+            border-right: var(--border-thin);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-input); }
+        ::-webkit-scrollbar-thumb { background: var(--line-base); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        .section-title {
+            font-size: 11.5px;
+            text-transform: uppercase;
+            color: var(--text-white);
+            font-weight: 600;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+        .mode-switch-box {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+        }
+        .mode-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-gray);
+            padding: 9px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .mode-btn.active { background: var(--text-white); color: #000; box-shadow: 0 2px 6px rgba(255,255,255,0.2); }
+        .mode-btn:not(.active):hover { background: var(--bg-hover); color: var(--text-white); }
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .form-group label { font-size: 11.5px; color: var(--text-gray); font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 9px 12px;
+            background: var(--bg-input);
+            border: var(--border-thin);
+            border-radius: var(--radius-sm);
+            color: var(--text-white);
+            font-family: 'Roboto Mono', 'Consolas', monospace;
+            font-size: 12.5px;
+            outline: none;
+            transition: var(--transition);
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--line-focus); box-shadow: 0 0 0 2px rgba(255,255,255,0.08); }
+        .form-row { display: flex; gap: 10px; }
+        .save-login-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+        .save-login-row input[type="checkbox"] { width: auto; cursor: pointer; accent-color: #fff; }
+        .save-login-row label { margin: 0; color: var(--text-gray); cursor: pointer; font-size: 12px; }
+        .btn {
+            padding: 11px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 12.5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--text-white); color: #000; }
+        .btn-primary:hover { background: #dedede; box-shadow: 0 4px 12px rgba(255,255,255,0.15); }
+        .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+        .btn-danger:hover { background: var(--danger-bg); }
+        .panel-terminal {
+            flex: 1;
+            background: #0B0B10;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            position: relative;
+            border-left: var(--border-thin);
+            border-right: var(--border-thin);
+        }
+        .terminal-toolbar {
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border-bottom: var(--border-thin);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .terminal-toolbar .info { font-size: 12px; color: var(--text-gray); }
+        .terminal-toolbar .info strong { color: var(--text-white); font-weight: 600; }
+        .terminal-toolbar .actions { display: flex; gap: 8px; }
+        .terminal-toolbar .actions button {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            color: var(--text-gray);
+            padding: 5px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 11.5px;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .terminal-toolbar .actions button:hover { background: var(--bg-hover); color: var(--text-white); border-color: var(--line-focus); }
+        .terminal-wrapper {
+            flex: 1;
+            padding: 0;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .terminal-inner { position: absolute; top: 16px; right: 16px; bottom: 16px; left: 16px; }
+        .terminal-wrapper .xterm { height: 100%; width: 100%; }
+        /* ============ V1.12.0 多终端：标签栏 ============ */
+        .tab-bar {
+            display: flex; align-items: stretch; flex-shrink: 0;
+            background: var(--bg-card); height: 34px;
+            border-bottom: 1px solid var(--line-base);
+            overflow-x: auto; overflow-y: hidden;
+        }
+        .tab-bar::-webkit-scrollbar { height: 0; }
+        .tab-item {
+            display: flex; align-items: center; gap: 7px;
+            padding: 0 10px 0 13px; cursor: pointer; user-select: none;
+            font-size: 11.5px; color: var(--text-gray);
+            border-right: 1px solid var(--line-base);
+            position: relative; white-space: nowrap; max-width: 230px;
+            transition: var(--transition);
+        }
+        .tab-item:hover { color: var(--text-white); background: var(--bg-hover); }
+        .tab-item.active { color: var(--text-white); background: #0B0B10; }
+        .tab-item.active::after {
+            content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+            height: 2px; background: #3B82F6; box-shadow: 0 0 8px rgba(59,130,246,.8);
+        }
+        .tab-item .tab-label { overflow: hidden; text-overflow: ellipsis; }
+        .tab-item .tab-close {
+            border: none; background: transparent; color: var(--text-muted);
+            width: 17px; height: 17px; border-radius: 3px; cursor: pointer;
+            font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center;
+        }
+        .tab-item .tab-close:hover { color: var(--text-white); background: var(--danger); border-radius: 3px; }
+        .tab-new {
+            border: none; background: transparent; color: var(--text-gray);
+            width: 36px; font-size: 16px; cursor: pointer; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .tab-new:hover { color: var(--text-white); background: var(--bg-hover); }
+
+        /* ============ 标签内容 + 嵌套分屏 ============ */
+        .tab-content { flex: 1; min-height: 0; display: none; }
+        .tab-content.active { display: flex; flex-direction: column; }
+        .split { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+        .split.row { flex-direction: row; }
+        .split.col { flex-direction: column; }
+
+        .pane {
+            display: flex; flex-direction: column; position: relative;
+            flex: 1 1 50%; min-width: 0; min-height: 0;
+            border: 1px solid transparent; background: #0B0B10;
+        }
+        .pane.active {
+            border-color: rgba(59,130,246,.75);
+            box-shadow: inset 0 0 22px rgba(59,130,246,.10), 0 0 10px rgba(59,130,246,.18);
+            z-index: 2;
+        }
+        .pane-head {
+            height: 28px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+            padding: 0 6px 0 10px; background: #101015;
+            border-bottom: 1px solid var(--line-base); font-size: 11px;
+        }
+        .pane-head .pname {
+            flex: 1; color: var(--text-gray); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; font-family: 'Roboto Mono', monospace;
+        }
+        .pane.active .pane-head .pname { color: var(--text-white); }
+        .pane-head .pbtn {
+            border: none; background: transparent; color: var(--text-muted);
+            width: 21px; height: 21px; border-radius: 4px; cursor: pointer;
+            font-size: 12px; display: flex; align-items: center; justify-content: center;
+        }
+        .pane-head .pbtn:hover { color: var(--text-white); background: var(--bg-hover); }
+        .pane-head .pclose:hover { color: var(--text-white); background: var(--danger); }
+        .pane-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--danger); }
+        .pane-dot.connected { background: #3B82F6; animation: pane-breathe 2.4s ease-in-out infinite; }
+        .pane-dot.connecting, .pane-dot.reconnecting { background: var(--warn); animation: pane-breathe 1s ease-in-out infinite; }
+        @keyframes pane-breathe { 0%,100% { opacity: 1; box-shadow: 0 0 6px currentColor; } 50% { opacity: .45; box-shadow: 0 0 2px currentColor; } }
+        .pane-term { flex: 1; position: relative; min-height: 0; padding: 8px 10px 6px; }
+        .pane-term .xterm { height: 100%; }
+
+        /* ============ 分隔条（可拖拽） ============ */
+        .resizer { flex-shrink: 0; position: relative; z-index: 3; background: transparent; }
+        .resizer.v { width: 7px; cursor: col-resize; }
+        .resizer.h { height: 7px; cursor: row-resize; }
+        .resizer::before {
+            content: ''; position: absolute; background: rgba(148,163,184,.22);
+            transition: var(--transition);
+        }
+        .resizer.v::before { top: 8px; bottom: 8px; left: 3px; width: 1px; }
+        .resizer.h::before { left: 8px; right: 8px; top: 3px; height: 1px; }
+        .resizer:hover::before, .resizer.dragging::before {
+            background: #3B82F6; box-shadow: 0 0 7px rgba(59,130,246,.9);
+        }
+        .resizer.v:hover::before, .resizer.v.dragging::before { top: 0; bottom: 0; width: 2px; left: 2px; }
+        .resizer.h:hover::before, .resizer.h.dragging::before { left: 0; right: 0; height: 2px; top: 2px; }
+        body.resizing { user-select: none; }
+        body.resizing * { cursor: inherit !important; }
+
+        .terminal-empty {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 10px; color: var(--text-muted); font-size: 13px;
+        }
+
+        /* ============ 左侧创建终端区 ============ */
+        .create-targets { display: flex; gap: 6px; margin-top: 6px; }
+        .create-targets .ct-btn {
+            flex: 1; background: var(--bg-input); border: var(--border-thin); color: var(--text-gray);
+            padding: 6px 4px; border-radius: var(--radius-sm); font-size: 11px; cursor: pointer; transition: var(--transition);
+        }
+        .create-targets .ct-btn:hover { color: var(--text-white); border-color: var(--line-focus); background: var(--bg-hover); }
+        .create-targets .ct-btn.primary { border-color: #3B82F6; color: #60A5FA; background: rgba(59,130,246,.10); }
+        .create-divider { height: 1px; background: var(--line-base); margin: 12px 0; }
+
+        /* ============ 自定义细滚动条 ============ */
+        .cmd-list, .api-list, .hp-list {
+            scrollbar-width: thin; scrollbar-color: #2A2A32 transparent;
+        }
+        .cmd-list::-webkit-scrollbar, .api-list::-webkit-scrollbar, .hp-list::-webkit-scrollbar { width: 8px; }
+        .cmd-list::-webkit-scrollbar-thumb, .api-list::-webkit-scrollbar-thumb, .hp-list::-webkit-scrollbar-thumb {
+            background: #2A2A32; border-radius: 4px; border: 2px solid transparent; background-clip: content-box;
+        }
+        .cmd-list::-webkit-scrollbar-thumb:hover, .api-list::-webkit-scrollbar-thumb:hover { background: #3B82F6; background-clip: content-box; }
+        .cmd-list::-webkit-scrollbar-track, .api-list::-webkit-scrollbar-track { background: transparent; }
+        .term-context-menu {
+            position: fixed;
+            z-index: 9999;
+            min-width: 132px;
+            background: #161616;
+            border: 1px solid #2c2c2c;
+            border-radius: 6px;
+            padding: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+            display: none;
+        }
+        .term-context-menu.show { display: block; }
+        .term-context-menu .menu-item {
+            padding: 7px 14px;
+            font-size: 12.5px;
+            color: #e8e8e8;
+            cursor: pointer;
+            border-radius: 4px;
+            user-select: none;
+        }
+        .term-context-menu .menu-item:hover { background: #262626; }
+        .term-context-menu .menu-item.disabled { color: #666; cursor: default; }
+        .term-context-menu .menu-item.disabled:hover { background: transparent; }
+        .history-popover {
+            position: absolute;
+            top: 46px;
+            right: 12px;
+            width: 320px;
+            max-height: 60%;
+            background: var(--bg-card);
+            border: var(--border-thin);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 32px rgba(0,0,0,0.6);
+            z-index: 60;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .history-popover.show { display: flex; }
+        .hp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 9px 12px;
+            border-bottom: var(--border-thin);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-white);
+            flex-shrink: 0;
+        }
+        .hp-clear {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            border-radius: 4px;
+            padding: 2px 9px;
+            font-size: 10.5px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .hp-clear:hover { background: var(--danger-bg); }
+        .hp-list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .hp-empty { color: var(--text-muted); font-size: 11.5px; text-align: center; padding: 18px 0; }
+        .history-chip {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            color: var(--text-gray);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: normal;
+            word-break: break-all;
+            text-align: left;
+            font-family: 'Roboto Mono', 'Consolas', monospace;
+            font-size: 11px;
+            transition: var(--transition);
+        }
+        .history-chip:hover { background: var(--bg-hover); color: var(--text-white); border-color: var(--line-focus); }
+        .panel-commands {
+            width: 320px;
+            background: var(--bg-panel);
+            border-left: var(--border-thin);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .api-quickbar {
+            padding: 7px 12px;
+            border-bottom: var(--border-thin);
+            background: var(--bg-card);
+            flex-shrink: 0;
+        }
+        .api-ip-input {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            color: var(--text-white);
+            padding: 4px 9px;
+            width: 112px;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 11.5px;
+            border-radius: var(--radius-sm);
+            outline: none;
+        }
+        .api-btn-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+        .api-btn-group:empty { display: none; margin-bottom: 0; }
+        .api-btn-group button {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            color: var(--text-gray);
+            padding: 5px 11px;
+            border-radius: var(--radius-sm);
+            font-size: 11.5px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .api-btn-group button:hover { background: var(--bg-hover); color: var(--text-white); }
+        .api-btn-group .api-btn-run { border-color: var(--text-white); color: var(--text-white); }
+        .api-status { font-size: 11.5px; color: var(--text-gray); display: flex; justify-content: space-between; }
+        .api-status.load { color: var(--warn); }
+        .api-status.ok { color: #4cd137; }
+        .api-status.err { color: var(--danger); }
+        .cmd-section, .api-section { display: flex; flex-direction: column; overflow: hidden; min-height: 120px; }
+        .cmd-section { flex: 2.6 1 0; border-bottom: var(--border-thin); }
+        .api-section { flex: 1 1 0; }
+        .section-header {
+            padding: 9px 16px;
+            background: var(--bg-card);
+            border-bottom: var(--border-thin);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-shrink: 0;
+        }
+        .section-header .title { font-size: 11.5px; font-weight: 600; color: var(--text-white); white-space: nowrap; flex-shrink: 0; padding-top: 5px; }
+        .section-header .title .badge {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            padding: 2px 6px;
+            font-size: 10.5px;
+            color: var(--text-gray);
+            border-radius: 4px;
+            margin-left: 4px;
+        }
+        .lib-controls, .api-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .lib-divider { width: 1px; height: 20px; background: var(--line-base); margin: 0 4px; flex-shrink: 0; }
+        .section-header select, .section-header button {
+            background: var(--bg-input);
+            border: var(--border-thin);
+            color: var(--text-gray);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 11.5px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .section-header button:hover { background: var(--bg-hover); color: var(--text-white); }
+        .section-header .btn-new-task { border-color: var(--text-white); color: var(--text-white); }
+        .section-header .btn-del-lib { border-color: var(--danger); color: var(--danger); }
+        .section-header .btn-del-lib:hover { background: var(--danger-bg); }
+        .cmd-list, .api-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .item-card {
+            background: var(--bg-card);
+            border: var(--border-thin);
+            border-radius: var(--radius-sm);
+            padding: 11px 12px;
+            margin-bottom: 8px;
+            transition: var(--transition);
+        }
+        .item-card:hover { border-color: var(--line-focus); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .item-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+        .item-name { font-size: 12px; font-weight: 600; color: var(--text-white); }
+        .item-actions { display: flex; gap: 5px; flex-shrink: 0; }
+        .item-actions button {
+            background: transparent;
+            border: 1px solid var(--line-base);
+            color: var(--text-gray);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .item-actions button:hover { background: var(--bg-hover); color: var(--text-white); }
+        .item-actions .btn-run { color: var(--text-white); border-color: var(--text-white); }
+        .item-actions .btn-delete { color: var(--danger); border-color: var(--danger); }
+        .item-actions .btn-delete:hover { background: var(--danger-bg); }
+        .item-body {
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: var(--bg-main);
+            border: var(--border-thin);
+            border-radius: 4px;
+            font-family: 'Roboto Mono', 'Consolas', monospace;
+            font-size: 11px;
+            color: var(--text-gray);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tag { color: var(--text-white); background: var(--bg-input); border: var(--border-thin); padding: 1px 6px; border-radius: 3px; font-size: 10.5px; margin-right: 6px; }
+        .empty-state-sm { text-align: center; padding: 32px; color: var(--text-muted); font-size: 12px; }
+        
+        @keyframes modalFade {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-overlay.active .modal-box { animation: modalFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .modal-box {
+            background: var(--bg-panel);
+            border: var(--border-thin);
+            width: 90%;
+            max-width: 380px;
+            padding: 20px;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-hard);
+        }
+        .modal-box h3 { color: var(--text-white); margin-bottom: 6px; font-size: 16px; font-weight: 600; }
+        .modal-box .sub { color: var(--text-gray); font-size: 11.5px; margin-bottom: 16px; }
+        .modal-box textarea { min-height: 100px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .modal-actions button {
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-size: 12.5px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .btn-cancel { background: var(--bg-input); color: var(--text-gray); border: var(--border-thin) !important; }
+        .btn-cancel:hover { background: var(--bg-hover); color: var(--text-white); }
+        .btn-confirm { background: var(--text-white); color: #000; font-weight: 600; }
+        .btn-confirm:hover { background: #dedede; }
+
+        /* ================= V1.10.0 视觉增强层（纯 CSS，不改动任何功能逻辑） ================= */
+        :root {
+            --ok: #4cd137;
+            --warn2: #fbc531;
+            --bad: #ff5555;
+            --cyan-glow: rgba(0,210,211,0.06);
+        }
+        /* 连接状态呼吸灯：绿=已连接 / 黄=连接或重连中 / 红=断开 */
+        .dot.connected { animation: breathGreen 2.4s ease-in-out infinite; }
+        .dot.reconnecting { background: var(--warn2); box-shadow: 0 0 8px var(--warn2); animation: breathAmber 0.9s ease-in-out infinite; }
+        .dot.disconnected { animation: breathRed 2.6s ease-in-out infinite; }
+        @keyframes breathGreen { 0%,100% { box-shadow: 0 0 4px rgba(76,209,55,.55); } 50% { box-shadow: 0 0 11px rgba(76,209,55,.95); } }
+        @keyframes breathAmber { 0%,100% { opacity:1; transform:scale(1); box-shadow:0 0 7px rgba(251,197,49,.7);} 50% { opacity:.45; transform:scale(.85); box-shadow:0 0 13px rgba(251,197,49,1);} }
+        @keyframes breathRed { 0%,100% { box-shadow: 0 0 4px rgba(255,85,85,.5); } 50% { box-shadow: 0 0 10px rgba(255,85,85,.9); } }
+
+        /* 容器与卡片发光描边 */
+        .app-container { border-color: #2e2e2e; box-shadow: 0 0 0 1px rgba(255,255,255,.03), 12px 12px 40px rgba(0,0,0,.6), 0 0 36px var(--cyan-glow); }
+        .item-card:hover { border-color: rgba(255,255,255,.45); box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 4px 14px rgba(0,0,0,.35), 0 0 16px var(--cyan-glow); transform: translateY(-1px); }
+
+        /* 按钮微交互 */
+        button { -webkit-tap-highlight-color: transparent; }
+        .btn, .terminal-toolbar .actions button, .section-header button, .item-actions button,
+        .api-btn-group button, .hp-clear, .btn-update, .btn-batch-run, .btn-batch-cancel {
+            will-change: transform;
+        }
+        .btn:active, .terminal-toolbar .actions button:active, .section-header button:active,
+        .item-actions button:active, .api-btn-group button:active, .btn-update:active, .btn-batch-run:active {
+            transform: translateY(1px) scale(.97);
+        }
+        .btn-primary:hover { box-shadow: 0 4px 14px rgba(255,255,255,.18), 0 0 22px rgba(255,255,255,.08); transform: translateY(-1px); }
+        .btn-danger:hover { box-shadow: 0 0 12px rgba(255,85,85,.18); }
+        .mode-btn.active { box-shadow: 0 2px 8px rgba(255,255,255,.22), 0 0 16px rgba(255,255,255,.08); }
+        .item-actions .btn-run:hover, .api-btn-group .api-btn-run:hover, .section-header .btn-new-task:hover { box-shadow: 0 0 10px rgba(255,255,255,.18); }
+        .btn-emergency:hover { box-shadow: 0 0 14px rgba(255,85,85,.28), inset 0 0 10px rgba(255,85,85,.06); }
+
+        /* Logo 与终端微光 */
+        .brand .logo { box-shadow: 0 0 14px rgba(255,255,255,.28), 0 0 26px rgba(0,210,211,.18); }
+        .panel-terminal { box-shadow: inset 0 0 60px rgba(0,0,0,.35); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.1), 0 0 12px rgba(255,255,255,.06);
+        }
+
+        /* 自定义细滚动条（带微光） */
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2e2e2e; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+        ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; background-clip: padding-box; box-shadow: 0 0 8px rgba(255,255,255,.15); }
+        * { scrollbar-width: thin; scrollbar-color: #2e2e2e transparent; }
+
+        /* 任务搜索框 */
+        .task-toolbar { display:flex; gap:8px; align-items:center; padding:8px 12px; background:var(--bg-card); border-bottom:var(--border-thin); flex-shrink:0; }
+        .task-search { flex:1; min-width:0; background:var(--bg-input); border:var(--border-thin); border-radius:var(--radius-sm); color:var(--text-white); padding:6px 10px; font-size:11.5px; outline:none; transition:var(--transition); font-family:inherit; }
+        .task-search:focus { border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.08); }
+        .batch-toggle { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-gray); cursor:pointer; white-space:nowrap; user-select:none; }
+        .batch-toggle input { accent-color:#fff; cursor:pointer; }
+
+        /* 批量操作栏 */
+        .batch-bar { display:none; align-items:center; gap:10px; padding:7px 12px; background:#101515; border-bottom:1px solid rgba(0,210,211,.18); flex-shrink:0; font-size:11.5px; }
+        .batch-bar.show { display:flex; }
+        .batch-chk { display:flex; align-items:center; gap:5px; color:var(--text-gray); cursor:pointer; user-select:none; }
+        .batch-chk input { accent-color:#fff; cursor:pointer; }
+        .batch-info { color:var(--text-gray); margin-right:auto; }
+        .btn-batch-run { background:#fff; color:#000; border:none; padding:5px 14px; border-radius:var(--radius-sm); font-weight:600; font-size:11.5px; cursor:pointer; transition:var(--transition); }
+        .btn-batch-run:hover { box-shadow:0 0 14px rgba(255,255,255,.25); }
+        .btn-batch-cancel { background:transparent; color:var(--text-gray); border:var(--border-thin); padding:5px 12px; border-radius:var(--radius-sm); font-size:11.5px; cursor:pointer; transition:var(--transition); }
+        .btn-batch-cancel:hover { color:var(--text-white); border-color:var(--line-focus); }
+
+        /* 批量勾选框与结果标记 */
+        .item-check { accent-color:#fff; cursor:pointer; margin-right:2px; flex-shrink:0; }
+        .item-name { display:flex; align-items:center; gap:7px; min-width:0; }
+        .item-name .nm-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .res-badge { font-size:11px; font-weight:700; flex-shrink:0; }
+        .res-ok { color:#4cd137; text-shadow:0 0 8px rgba(76,209,55,.8); }
+        .res-fail { color:#ff5555; text-shadow:0 0 8px rgba(255,85,85,.8); }
+        .res-skip { color:var(--text-muted); }
+        .res-run { color:#fbc531; animation:spinPulse 1s ease-in-out infinite; }
+        @keyframes spinPulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+        .item-card.row-ok { border-color:rgba(76,209,55,.35); }
+        .item-card.row-fail { border-color:rgba(255,85,85,.4); }
+        .item-card.row-skip { opacity:.55; }
+        .item-card.row-run { border-color:rgba(251,197,49,.5); box-shadow:0 0 12px rgba(251,197,49,.12); }
+
+        /* 检查更新按钮与结果区 */
+        .btn-update { background:transparent; border:var(--border-thin); color:var(--text-gray); padding:7px 13px; border-radius:var(--radius-sm); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:var(--transition); white-space:nowrap; }
+        .btn-update:hover { color:var(--text-white); border-color:var(--line-focus); box-shadow:0 0 10px rgba(255,255,255,.1); }
+        .btn-update.has-update { color:#fbc531; border-color:rgba(251,197,49,.6); animation:updPulse 1.6s ease-in-out infinite; }
+        .btn-update.has-update:hover { background:rgba(251,197,49,.08); }
+        @keyframes updPulse { 0%,100%{ box-shadow:0 0 4px rgba(251,197,49,.2);} 50%{ box-shadow:0 0 14px rgba(251,197,49,.55);} }
+        .update-result { background:var(--bg-input); border:var(--border-thin); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; color:var(--text-gray); max-height:220px; overflow-y:auto; white-space:pre-wrap; line-height:1.7; }
+        .update-result .ok { color:#4cd137; }
+        .update-result .bad { color:#ff5555; }
+        .update-goto { margin-top:10px; background:#fff; color:#000; border:none; padding:6px 14px; border-radius:var(--radius-sm); font-weight:600; font-size:12px; cursor:pointer; transition:var(--transition); }
+        .update-goto:hover { box-shadow:0 0 12px rgba(255,255,255,.2); }
+        .update-result .info { color:#60A5FA; }
+        .upd-notes { margin:8px 0 4px; color:var(--text-gray); white-space:pre-wrap; }
+        .upd-pbar { height:8px; background:var(--bg-input); border:var(--border-thin); border-radius:6px; overflow:hidden; margin-top:4px; }
+        .upd-pfill { height:100%; background:linear-gradient(90deg,#3B82F6,#60A5FA); box-shadow:0 0 10px rgba(59,130,246,.7); transition:width .25s ease; }
+        .upd-pinfo { margin-top:7px; color:#93C5FD; font-size:11px; }
+        .upd-hint { margin-top:7px; color:var(--text-gray); font-size:11px; }
+
+        .upd-file { margin-top:6px; color:#E2E8F0; font-size:11px; word-break:break-all; line-height:1.4; }
+        .upd-cancel { margin-top:8px; background:transparent; color:#F87171; border:1px solid #7F1D1D; }
+        .upd-cancel:hover { background:rgba(248,113,113,.12); border-color:#EF4444; }
+        .update-result .info { color:#60A5FA; }
+        .upd-notes { margin:8px 0 4px; color:var(--text-gray); white-space:pre-wrap; }
+        .upd-pbar { height:8px; background:var(--bg-input); border:var(--border-thin); border-radius:6px; overflow:hidden; margin-top:4px; }
+        .upd-pfill { height:100%; background:linear-gradient(90deg,#3B82F6,#60A5FA); box-shadow:0 0 10px rgba(59,130,246,.7); transition:width .25s ease; }
+        .upd-pinfo { margin-top:7px; color:#93C5FD; font-size:11px; }
+        .upd-hint { margin-top:7px; color:var(--text-gray); font-size:11px; }
+        .update-result .info { color:#60A5FA; }
+        .upd-notes { margin:8px 0 4px; color:var(--text-gray); white-space:pre-wrap; }
+        .upd-pbar { height:8px; background:var(--bg-input); border:var(--border-thin); border-radius:6px; overflow:hidden; margin-top:4px; }
+        .upd-pfill { height:100%; background:linear-gradient(90deg,#3B82F6,#60A5FA); box-shadow:0 0 10px rgba(59,130,246,.7); transition:width .25s ease; }
+        .upd-pinfo { margin-top:7px; color:#93C5FD; font-size:11px; }
+        .upd-hint { margin-top:7px; color:var(--text-gray); font-size:11px; }
+
+        /* ================= V1.11.0 HUD 赛博控制台风（覆盖层） ================= */
+        .app-container { border-color: #2A2A35; box-shadow: 0 0 0 1px rgba(59,130,246,.07), 16px 16px 48px rgba(0,0,0,.75), 0 0 44px rgba(59,130,246,.08); }
+        .app-header { background: linear-gradient(180deg, #17171E 0%, #131318 100%); border-bottom-color: #2A2A35; }
+        .brand h1 { letter-spacing: 2.5px; font-weight: 700; color: #F8FAFC; text-shadow: 0 0 18px rgba(59,130,246,.4); }
+        .brand .logo { background: transparent; color: #3B82F6; box-shadow: none; }
+        .brand .logo svg { filter: drop-shadow(0 0 6px rgba(59,130,246,.85)); }
+        .panel-connect, .panel-commands { background: #131318; }
+        .section-title { color: #F8FAFC; letter-spacing: 1.6px; font-size: 11px; opacity: .92; }
+        .mode-btn.active { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); color: #0B0B10; box-shadow: 0 2px 12px rgba(59,130,246,.45); font-weight: 700; }
+        .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); color: #0B0B10; font-weight: 700; box-shadow: 0 2px 10px rgba(59,130,246,.35); }
+        .btn-primary:hover { background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%); box-shadow: 0 4px 18px rgba(59,130,246,.5); transform: translateY(-1px); }
+        .btn-confirm { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); color: #0B0B10; font-weight: 700; }
+        .btn-confirm:hover { background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%); box-shadow: 0 0 14px rgba(59,130,246,.45); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,.18), 0 0 14px rgba(59,130,246,.15); }
+        .item-card { background: #1E1E23; border-color: #2A2A32; border-radius: 8px; }
+        .item-card:hover { border-color: rgba(59,130,246,.55); box-shadow: 0 0 0 1px rgba(59,130,246,.15), 0 6px 18px rgba(0,0,0,.4), 0 0 18px rgba(59,130,246,.1); transform: translateY(-1px); }
+        .item-card.row-ok { border-color: rgba(34,197,94,.55); box-shadow: 0 0 12px rgba(34,197,94,.15); }
+        .item-card.row-fail { border-color: rgba(239,68,68,.55); box-shadow: 0 0 12px rgba(239,68,68,.15); }
+        .item-card.row-run { border-color: rgba(250,204,21,.55); box-shadow: 0 0 14px rgba(250,204,21,.15); }
+        .item-body { background: #0E0E13; border-color: #2A2A32; }
+        .item-actions .btn-run { border-color: #3B82F6; color: #60A5FA; }
+        .item-actions .btn-run:hover { background: rgba(59,130,246,.12); box-shadow: 0 0 10px rgba(59,130,246,.35); }
+        .item-actions .btn-delete { border-color: #EF4444; color: #EF4444; }
+        .item-actions .btn-delete:hover { background: rgba(239,68,68,.14); box-shadow: 0 0 10px rgba(239,68,68,.3); }
+        .section-header { background: #17171E; }
+        .section-header .btn-new-task { border-color: #3B82F6; color: #60A5FA; }
+        .section-header .btn-new-task:hover { background: rgba(59,130,246,.12); box-shadow: 0 0 10px rgba(59,130,246,.35); }
+        .terminal-toolbar { background: #17171E; }
+        .terminal-toolbar .actions button { background: #18181E; border-color: #2A2A32; color: #94A3B8; }
+        .terminal-toolbar .actions button:hover { border-color: #3B82F6; color: #F8FAFC; box-shadow: 0 0 10px rgba(59,130,246,.25); }
+        .terminal-toolbar .actions button.active { border-color: #3B82F6; color: #60A5FA; background: rgba(59,130,246,.1); }
+        .task-toolbar { background: #17171E; }
+        .task-search { background: #18181E; border-color: #2A2A32; }
+        .task-search:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+        .batch-bar { background: #14141A; border-bottom-color: rgba(59,130,246,.35); }
+        .btn-batch-run { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); color: #0B0B10; font-weight: 700; }
+        .btn-batch-run:hover { box-shadow: 0 0 16px rgba(59,130,246,.5); }
+        .res-ok { color: #22C55E; text-shadow: 0 0 8px rgba(34,197,94,.8); }
+        .res-fail { color: #EF4444; text-shadow: 0 0 8px rgba(239,68,68,.8); }
+        .res-run { color: #FACC15; text-shadow: 0 0 8px rgba(250,204,21,.7); }
+        .btn-emergency { border-color: #EF4444; color: #EF4444; background: rgba(239,68,68,.06); }
+        .btn-emergency:hover { background: rgba(239,68,68,.16); box-shadow: 0 0 16px rgba(239,68,68,.35), inset 0 0 12px rgba(239,68,68,.08); }
+        .btn-update { background: #18181E; border-color: #2A2A32; }
+        .btn-update:hover { border-color: #3B82F6; box-shadow: 0 0 12px rgba(59,130,246,.25); }
+        .btn-update.has-update { color: #FACC15; border-color: rgba(250,204,21,.6); }
+        .status { background: #18181E; border-color: #2A2A32; }
+        .dot.connected { background: #22C55E; box-shadow: 0 0 6px #22C55E; }
+        .dot.disconnected { background: #EF4444; box-shadow: 0 0 6px #EF4444; }
+        .dot.connecting { background: #FACC15; box-shadow: 0 0 6px #FACC15; }
+        .api-ip-input { background: #18181E; border-color: #2A2A32; color: #F8FAFC; }
+        .api-btn-group button { background: #18181E; border-color: #2A2A32; }
+        .api-btn-group .api-btn-run { border-color: #3B82F6; color: #60A5FA; }
+        .api-btn-group .api-btn-run:hover { background: rgba(59,130,246,.12); box-shadow: 0 0 10px rgba(59,130,246,.3); }
+        .term-context-menu { background: #17171E; border-color: #2A2A35; box-shadow: 0 12px 32px rgba(0,0,0,.65); }
+        .term-context-menu .menu-item:hover { background: #2A2A32; }
+        .history-popover { background: #131318; border-color: #2A2A35; }
+        .history-chip { background: #18181E; border-color: #2A2A32; color: #94A3B8; }
+        .history-chip:hover { border-color: #3B82F6; color: #F8FAFC; }
+        .modal-box { background: #131318; border-color: #2A2A35; box-shadow: 0 20px 60px rgba(0,0,0,.75), 0 0 40px rgba(59,130,246,.05); }
+        .update-result { background: #0E0E13; border-color: #2A2A32; }
+        .btn-cancel { background: #18181E; border-color: #2A2A32 !important; color: #94A3B8; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #2A2A35; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+        ::-webkit-scrollbar-thumb:hover { background: #3E3E4C; background-clip: padding-box; box-shadow: 0 0 10px rgba(59,130,246,.3); }
+        * { scrollbar-width: thin; scrollbar-color: #2A2A35 transparent; }
+
+        /* 右侧面板折叠：收起时终端占满全宽 */
+        .panel-commands { transition: width .26s cubic-bezier(.4,0,.2,1), opacity .2s; overflow: hidden; }
+        body.tasks-collapsed .panel-commands { width: 0 !important; opacity: 0; border-left: none; }
+        body.tasks-collapsed #toggleTasksBtn { border-color: #3B82F6; color: #60A5FA; background: rgba(59,130,246,.1); }
+    
+/* ===== SFTP 文件传输面板 ===== */
+.panel-tabs { display: flex; border-bottom: 1px solid #2a2a35; flex-shrink: 0; }
+.panel-tab { flex: 1; padding: 8px 4px; background: transparent; border: none; color: #888; cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; transition: all .15s; }
+.panel-tab.active { color: #60A5FA; border-bottom-color: #3B82F6; background: rgba(59,130,246,.06); }
+.panel-tab:hover { color: #ccc; }
+.sftp-section { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.sftp-section.active { display: flex; }
+.sftp-section .section-header { padding: 8px 10px; border-bottom: 1px solid #22222c; }
+.sftp-controls { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; border-bottom: 1px solid #1e1e28; }
+.sftp-controls button { padding: 3px 8px; font-size: 11px; background: #1e1e28; border: 1px solid #333; color: #ccc; border-radius: 3px; cursor: pointer; }
+.sftp-controls button:hover { background: #2a2a38; border-color: #3B82F6; color: #60A5FA; }
+.sftp-jumpbar { display:none; align-items:center; gap:6px; padding:5px 10px; background:rgba(34,197,94,.1); border-bottom:1px solid #1e3a2a; }
+.sftp-jumpbar.open { display:flex; }
+.sftp-jumpbar .sftp-jumpinfo { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:#86efac; }
+.sftp-jumpbar button { background:#1e2a22; border:1px solid #2f5a3f; color:#86efac; padding:2px 8px; border-radius:3px; cursor:pointer; font-size:11px; }
+.sftp-credbar { display:none; flex-direction:column; gap:5px; padding:8px 10px; background:rgba(234,179,8,.07); border-bottom:1px solid #3a321e; }
+.sftp-credbar.open { display:flex; }
+.sftp-credbar .sftp-credhint { font-size:11px; color:#fcd34d; }
+.sftp-credbar input { background:var(--bg-input); border:var(--border-thin); color:var(--text-white); padding:5px 8px; border-radius:4px; font-size:12px; }
+.sftp-credbar button { background:#3a321e; border:1px solid #854d0e; color:#fcd34d; padding:4px; border-radius:4px; cursor:pointer; font-size:12px; }
+.sftp-jumpbar { display:none; align-items:center; gap:6px; padding:5px 10px; background:rgba(34,197,94,.1); border-bottom:1px solid #1e3a2a; }
+.sftp-jumpbar.open { display:flex; }
+.sftp-jumpbar .sftp-jumpinfo { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:#86efac; }
+.sftp-jumpbar button { background:#1e2a22; border:1px solid #2f5a3f; color:#86efac; padding:2px 8px; border-radius:3px; cursor:pointer; font-size:11px; }
+.sftp-credbar { display:none; flex-direction:column; gap:5px; padding:8px 10px; background:rgba(234,179,8,.07); border-bottom:1px solid #3a321e; }
+.sftp-credbar.open { display:flex; }
+.sftp-credbar .sftp-credhint { font-size:11px; color:#fcd34d; }
+.sftp-credbar input { background:var(--bg-input); border:var(--border-thin); color:var(--text-white); padding:5px 8px; border-radius:4px; font-size:12px; }
+.sftp-credbar button { background:#3a321e; border:1px solid #854d0e; color:#fcd34d; padding:4px; border-radius:4px; cursor:pointer; font-size:12px; }
+.sftp-path { padding: 6px 10px; font-size: 11px; color: #94a3b8; background: #0f0f16; border-bottom: 1px solid #1e1e28; word-break: break-all; font-family: 'Roboto Mono', monospace; }
+.sftp-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.sftp-item { display: flex; align-items: center; padding: 5px 10px; cursor: pointer; font-size: 12px; gap: 6px; border-bottom: 1px solid #18181f; }
+.sftp-item:hover { background: #1e1e2a; }
+.sftp-item .sftp-icon { width: 18px; text-align: center; flex-shrink: 0; }
+.sftp-item .sftp-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sftp-item .sftp-size { color: #64748b; font-size: 10px; flex-shrink: 0; width: 60px; text-align: right; font-family: 'Roboto Mono', monospace; }
+.sftp-item .sftp-perm { color: #475569; font-size: 10px; flex-shrink: 0; width: 70px; font-family: 'Roboto Mono', monospace; }
+.sftp-item .sftp-actions { display: none; gap: 3px; flex-shrink: 0; }
+.sftp-item:hover .sftp-actions { display: flex; }
+.sftp-item .sftp-actions button { background: none; border: none; color: #888; cursor: pointer; padding: 2px 4px; font-size: 11px; }
+.sftp-item .sftp-actions button:hover { color: #ef4444; }
+.sftp-item .sftp-actions button.dl:hover { color: #22C55E; }
+.sftp-status { padding: 6px 10px; font-size: 11px; color: #64748b; text-align: center; }
+.sftp-drag-over { background: rgba(59,130,246,.12) !important; outline: 2px dashed #3B82F6; outline-offset: -4px; }
+.sftp-item .sftp-check { margin:0; flex-shrink:0; cursor:pointer; accent-color:#3B82F6; }
+.sftp-item.sel { background: rgba(59,130,246,.14); }
+.sftp-item.sel .sftp-name { color:#93C5FD; }
+.sftp-controls .tar-btn { background:#172033 !important; border:1px solid #2563EB !important; color:#93C5FD !important; }
+.sftp-controls .tar-btn:hover { background:#1d2c4d !important; box-shadow:0 0 8px rgba(59,130,246,.5); }
+.sftp-selall { display:flex; align-items:center; gap:3px; font-size:11px; color:#94a3b8; margin-left:2px; cursor:pointer; white-space:nowrap; }
+.sftp-selall input { accent-color:#3B82F6; cursor:pointer; }
+.sftp-progress { padding: 4px 10px; font-size: 11px; color: #60A5FA; }
+        .sftp-tfile { padding:6px 0 2px; font-size:11px; color:#E2E8F0; word-break:break-all; line-height:1.3; }
+        .sftp-tbar { height:6px; background:#1a1a24; border-radius:4px; overflow:hidden; }
+        .sftp-tfill { height:100%; background:linear-gradient(90deg,#3B82F6,#60A5FA); box-shadow:0 0 8px rgba(59,130,246,.6); transition:width .2s; }
+        .sftp-tinfo { margin-top:4px; font-size:10.5px; color:#93C5FD; font-family:'Roboto Mono',monospace; }
+        .sftp-tcancel { margin-top:5px; background:transparent; color:#F87171; border:1px solid #7F1D1D; padding:2px 10px; border-radius:3px; font-size:11px; cursor:pointer; }
+        .sftp-tcancel:hover { background:rgba(248,113,113,.12); border-color:#EF4444; }
+
+
+
+</style>
+</head>
+<body>
+<div class="app-container">
+    <header class="app-header">
+        <div class="brand">
+            <div class="logo" title="Remote Commander"><img src="data:image/png;base64,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" width="46" height="46" alt="Remote Commander logo"></div>
+            <h1>Remote Commander</h1>
+        </div>
+        <div class="header-right">
+            <button class="btn-update" id="updateCheckBtn" onclick="openUpdateModal()" title="检查新版本">
+                <span class="upd-ico">🔄</span><span class="upd-txt">检查更新</span>
+            </button>
+            <button class="btn-emergency" onclick="triggerEmergencyStop()">
+                🛑 紧急停止 (EMERGENCY STOP)
+            </button>
+            <div class="status">
+                <span class="dot disconnected" id="statusDot"></span>
+                <span class="label" id="statusLabel">系统未连接</span>
+                <span style="color:var(--line-base);">|</span>
+                <span style="color:var(--text-gray); font-size:11.5px;" id="sessionInfo">就绪</span>
+            </div>
+        </div>
+    </header>
+    <div class="app-body">
+        <div class="panel-connect">
+            <div class="section-title">🖥️ 创建终端</div>
+            <div>
+                <button class="btn" style="background:var(--bg-input); border:var(--border-thin); color:var(--text-white);" onclick="createLocal('split')">＋ 本地 Shell 终端</button>
+                <div class="create-targets">
+                    <button class="ct-btn" onclick="createLocal('split')">◫ 当前标签分屏</button>
+                    <button class="ct-btn" onclick="createLocal('tab')">＋ 新建标签</button>
+                </div>
+            </div>
+            <div class="create-divider"></div>
+            <div id="sshConfigArea">
+                <div class="section-title">🔌 SSH 远程终端配置</div>
+                <div class="form-group">
+                    <label>目标 IP 地址（支持历史联想）</label>
+                    <input type="text" id="hostInput" list="ipAccountList" placeholder="192.168.1.100">
+                    <datalist id="ipAccountList"></datalist>
+               </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1;">
+                        <label>端口</label>
+                        <input type="number" id="portInput" value="22">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>协议</label>
+                        <select id="protoSelect"><option value="ssh">SSH</option></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>用户账号</label>
+                    <input type="text" id="userInput" list="userAccountList" placeholder="root 或其他用户名">
+                    <datalist id="userAccountList"></datalist>
+                </div>
+                <div class="form-group">
+                    <label>密码 / 安全密钥</label>
+                    <input type="password" id="passInput" placeholder="••••••••">
+                </div>
+                <div class="save-login-row">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="saveLoginInfo" checked>
+                        <label for="saveLoginInfo">自动保存凭据</label>
+                    </div>
+                    <button onclick="openAccountManager()" style="background:var(--bg-input); border:var(--border-thin); color:var(--text-gray); padding:3px 10px; border-radius:4px; font-size:11px; cursor:pointer;">管理账号</button>
+                </div>
+                <div style="margin-top: 8px;">
+                    <button class="btn btn-primary" onclick="createSsh('split')">＋ SSH 终端</button>
+                    <button class="btn" onclick="createQuickSsh()" title="一键连接 hzhy@192.168.8.88" style="margin-top:6px; width:100%; background:var(--bg-input); border:var(--border-thin); color:var(--text-main);">⚡ 连接RK</button>
+                    <div class="create-targets">
+                        <button class="ct-btn primary" onclick="createSsh('split')">◫ 当前标签分屏</button>
+                        <button class="ct-btn" onclick="createSsh('tab')">＋ 新建标签</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-terminal">
+            <div class="terminal-toolbar">
+                <div class="info">
+                    <strong id="termTitle">终端</strong> <span id="termAddr" style="color:var(--text-gray)">— 请选择模式并建立链路</span>
+                </div>
+                <div class="actions">
+                    <button id="clearTermBtn" onclick="(function(){var p=focusPane(); if(p)p.term.clear()})()">清屏</button>
+                    <button id="resetTermBtn" onclick="(function(){var p=focusPane(); if(p)p.term.reset()})()">重置</button>
+                    <button id="historyBtn" onclick="toggleHistoryPopover()">历史命令</button>
+                    <button id="toggleTasksBtn" class="active" onclick="toggleTasksPanel()" title="显示 / 隐藏右侧任务与接口库">▤ 任务库</button>
+                </div>
+            </div>
+            <div class="tab-bar" id="tabBar">
+                <button class="tab-new" onclick="createLocal('tab')" title="新建标签">＋</button>
+            </div>
+            <div class="terminal-wrapper" id="terminalWrapper"></div>
+            <div class="history-popover" id="historyPopover">
+                <div class="hp-header">
+                    <span>历史命令</span>
+                    <button class="hp-clear" onclick="clearTerminalHistory()">清空</button>
+                </div>
+                <div class="hp-list" id="hpList"></div>
+            </div>
+        </div>
+        <div class="panel-commands">
+            <div class="panel-tabs">
+                <button class="panel-tab active" id="tabBtnTasks" onclick="switchRightPanel('tasks')">📋 任务库</button>
+                <button class="panel-tab" id="tabBtnSftp" onclick="switchRightPanel('sftp')">📁 SFTP</button>
+            </div>
+            <div class="cmd-section" id="tasksPanel">
+                <div class="section-header">
+                    <span class="title" id="cmdSectionTitle">📋 任务库 <span class="badge" id="cmdCount">0</span></span>
+                    <div class="lib-controls">
+                        <select id="librarySelect" onchange="switchLibrary(this.value)"></select>
+                        <button onclick="addLibrary()" title="新建库">+库</button>
+                        <button onclick="deleteCurrentLibrary()" class="btn-del-lib" title="删除当前库">-删库</button>
+                        <span class="lib-divider"></span>
+                        <button onclick="exportData()" title="导出 JSON">📤导出</button>
+                        <button onclick="importData()" title="导入 JSON">📥导入</button>
+                        <span class="lib-divider"></span>
+                        <button onclick="openCmdAdd()" class="btn-new-task" title="新建任务">新建任务</button>
+                    </div>
+                </div>
+                <div class="task-toolbar">
+                    <input type="text" id="taskSearchInput" class="task-search" placeholder="🔍 搜索任务名 / 命令内容" oninput="onTaskSearch(this.value)">
+                    <label class="batch-toggle" id="batchToggleWrap" title="勾选多条任务按顺序批量执行">
+                        <input type="checkbox" id="batchModeChk" onchange="toggleBatchMode(this.checked)"> 批量
+                    </label>
+                </div>
+                <div class="batch-bar" id="batchBar">
+                    <label class="batch-chk"><input type="checkbox" id="batchSelectAll" onchange="toggleSelectAll(this.checked)"> 全选</label>
+                    <span class="batch-info" id="batchSelInfo">已选 0</span>
+                    <button class="btn-batch-run" onclick="openBatchModal()">▶ 批量执行</button>
+                    <button class="btn-batch-cancel" onclick="exitBatchMode()">退出</button>
+                </div>
+                <div class="cmd-list" id="cmdList">
+                    <div class="empty-state-sm">暂无快捷任务</div>
+                </div>
+            </div>
+            <div class="api-section">
+                <div class="section-header">
+                    <span class="title">📡 接口库 <span class="badge" id="apiCount">0</span></span>
+                    <div class="api-controls">
+                        <input type="text" id="robotIpInput" class="api-ip-input" value="192.168.1.100" placeholder="机器人IP" title="接口请求目标机器人 IP">
+                        <button onclick="exportApiData()" title="导出 JSON">📤导出</button>
+                        <button onclick="importApiData()" title="导入 JSON">📥导入</button>
+                        <button onclick="openApiAdd()" style="color:var(--text-white); border:1px solid var(--text-white); padding:3px 10px;">+添加</button>
+                    </div>
+                </div>
+                <div class="api-quickbar">
+                    <div class="api-btn-group" id="quickApiGroup"></div>
+                    <div class="api-status" id="apiStatus">系统网关就绪</div>
+                </div>
+                <div class="api-list" id="apiList">
+                    <div class="empty-state-sm">暂无接口指令</div>
+                </div>
+            </div>
+
+            <div class="sftp-section" id="sftpSection">
+                <div class="section-header">
+                    <span class="title">📁 SFTP 文件传输</span>
+                </div>
+                <div class="sftp-controls">
+                    <button onclick="sftpGoUp()" title="返回上级目录">⬆ 上级</button>
+                    <button onclick="sftpRefresh()" title="刷新">🔄</button>
+                    <button onclick="sftpMkdir()" title="新建文件夹">📁+</button>
+                    <button onclick="sftpUploadClick()" title="上传文件到当前目录">⬆ 上传</button>
+                    <button id="sftpTarBtn" class="tar-btn" onclick="sftpTarDownload()" title="将勾选的文件/文件夹在远程打包后下载">📦 打包下载</button>
+                    <label class="sftp-selall" title="全选/取消全选当前目录"><input type="checkbox" onclick="sftpToggleAll(this)">全选</label>
+                </div>
+                <div class="sftp-jumpbar" id="sftpJumpBar">
+                    <span class="sftp-jumpinfo" id="sftpJumpInfo"></span>
+                    <button onclick="sftpDetach()" title="切回主连接 SFTP">⬅ 返回主连接</button>
+                </div>
+                <div class="sftp-credbar" id="sftpCredBar">
+                    <span class="sftp-credhint" id="sftpCredHint"></span>
+                    <input type="password" id="sftpCredPass" placeholder="目标密码，回车连接">
+                    <button onclick="sftpCredSubmit()">连接</button>
+                </div>
+                <div class="sftp-path" id="sftpPath">未连接 SSH</div>
+                <div class="sftp-list" id="sftpList">
+                    <div class="sftp-status">连接 SSH 后自动加载文件列表</div>
+                </div>
+                <div class="sftp-progress" id="sftpProgress" style="display:none;"></div>
+                <input type="file" id="sftpFileInput" multiple style="display:none;" onchange="sftpDoUpload(event)">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务编辑弹窗 -->
+<div class="modal-overlay" id="cmdModal" onclick="closeCmdModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3 id="cmdModalTitle">添加任务</h3>
+        <div class="sub">支持多行命令输入（每行一条）</div>
+        <div class="form-group"><label>名称</label><input type="text" id="cmdNameInput" placeholder="任务名称"></div>
+        <div class="form-group"><label>命令内容</label><textarea id="cmdBodyInput" placeholder="输入执行命令"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeCmdModal()">取消</button>
+            <button class="btn-confirm" onclick="saveCmdModal()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- API编辑弹窗 -->
+<div class="modal-overlay" id="apiModal" onclick="closeApiModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3 id="apiModalTitle">添加接口</h3>
+        <div class="sub">配置 HTTP 调用</div>
+        <div class="form-group"><label>名称</label><input type="text" id="apiNameInput" placeholder="接口名称"></div>
+        <div class="form-row">
+            <div class="form-group" style="flex:0 0 100px;"><label>方法</label><select id="apiMethodInput"><option>GET</option><option selected>POST</option><option>PUT</option></select></div>
+            <div class="form-group" style="flex:1;"><label>路径</label><input type="text" id="apiPathInput" placeholder="/api/xxx"></div>
+        </div>
+        <div class="form-group"><label>请求体</label><textarea id="apiBodyInput" placeholder='{}'></textarea></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeApiModal()">取消</button>
+            <button class="btn-confirm" onclick="saveApiModal()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- API响应预览弹窗 -->
+<div class="modal-overlay" id="apiResModal" onclick="closeApiResModal()">
+    <div class="modal-box" style="max-width: 520px;" onclick="event.stopPropagation()">
+        <h3>API 响应预览</h3>
+        <div class="sub" id="apiResSub">返回数据</div>
+        <div class="form-group">
+            <textarea id="apiResBodyInput" readonly style="min-height: 220px; color: #fff;"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-confirm" onclick="closeApiResModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 通用删除确认弹窗 -->
+<div class="modal-overlay" id="confirmModal" onclick="closeConfirmModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3>确认操作</h3>
+        <div class="sub" id="confirmText"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeConfirmModal()">取消</button>
+            <button class="btn-confirm" id="confirmOkBtn">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 通用输入弹窗（Electron 不支持原生 prompt） -->
+<div class="modal-overlay" id="promptModal" onclick="closePromptModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3 id="promptTitle">请输入</h3>
+        <div class="sub" id="promptText"></div>
+        <div class="form-group" style="margin-top:12px;">
+            <input type="text" id="promptInput" placeholder="">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closePromptModal()">取消</button>
+            <button class="btn-confirm" id="promptOkBtn">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 导入模式选择弹窗 -->
+<div class="modal-overlay" id="importModal" onclick="closeImportModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3>导入任务库</h3>
+        <div class="sub">选择导入模式，合并不会覆盖现有库</div>
+        <div style="margin:12px 0;display:flex;gap:16px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="importMode" value="merge" checked>合并追加</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="importMode" value="overwrite">覆盖全部</label>
+        </div>
+        <input type="file" id="importFile" accept=".json" style="margin:8px 0; font-size:12px;">
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeImportModal()">取消</button>
+            <button class="btn-confirm" onclick="runImport()">开始导入</button>
+        </div>
+    </div>
+</div>
+
+<!-- 已保存账号管理弹窗 -->
+<div class="modal-overlay" id="accountManagerModal" onclick="closeAccountManager()">
+    <div class="modal-box" style="max-width: 460px;" onclick="event.stopPropagation()">
+        <h3>已保存的账号列表</h3>
+        <div class="sub">管理所有在本地存储中记录的 SSH 远程连接凭据</div>
+        <div id="savedAccountListContainer" style="max-height: 260px; overflow-y: auto; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;"></div>
+        <div class="modal-actions" style="justify-content: space-between;">
+            <button class="btn-danger" onclick="clearAllSavedAccounts()" style="padding: 7px 12px; font-size: 11.5px;">清空所有账号</button>
+            <button class="btn-confirm" onclick="closeAccountManager()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 批量执行配置弹窗 -->
+<div class="modal-overlay" id="batchModal" onclick="closeBatchModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3>批量执行</h3>
+        <div class="sub" id="batchModalSub">将按列表顺序在 SSH 终端中执行已勾选任务，并依据退出码标记成功/失败</div>
+        <div class="form-row">
+            <div class="form-group" style="flex:1;"><label>每条间隔（秒）</label><input type="number" id="batchIntervalInput" value="1" min="0" step="0.5"></div>
+            <div class="form-group" style="flex:1;"><label>单条超时（秒）</label><input type="number" id="batchTimeoutInput" value="60" min="5" step="5"></div>
+        </div>
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="batchStopOnFailChk" checked style="width:auto;accent-color:#fff;"> 失败即停（后续任务标记为跳过）</label>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeBatchModal()">取消</button>
+            <button class="btn-confirm" onclick="runBatch()">开始执行</button>
+        </div>
+    </div>
+</div>
+
+<!-- 版本更新弹窗 -->
+<div class="modal-overlay" id="updateModal" onclick="closeUpdateModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <h3>版本更新</h3>
+        <div class="sub">当前版本 V<span id="curVerLabel">0.0.0</span></div>
+        <div class="form-group">
+            <label>更新源地址（存放 latest.yml 的目录 URL，公网 OSS / 内网均可，留空则不检查）</label>
+            <input type="text" id="updateUrlInput" placeholder="http://192.168.x.x/rc/ 或 https://oss地址/rc/">
+        </div>
+        <div class="update-result" id="updateResult">尚未检查</div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeUpdateModal()">关闭</button>
+            <button class="btn-confirm" onclick="saveUpdateUrlAndCheck()">保存并检查</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const safeParse = (str, fallback) => { try { return JSON.parse(str) || fallback; } catch(e) { return fallback; } };
+const escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function downloadJSON(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function closeWebSocket() {
+    if (ws) {
+        try { ws.close(); } catch(e) {}
+        ws = null;
+    }
+}
+
+async function safeFetch(url, opt={}) {
+    try { return await fetch(url, opt); } catch (err) { console.error('Fetch Error:', err); return null; }
+}
+
+let currentMode = 'ssh';
+let ws = null;
+let isConnected = false;
+let sessionId = null;
+let terminalHistory = safeParse(localStorage.getItem('rc_term_history'), ['ls -la', 'htop', 'ros2 node list', 'df -h', 'docker ps']);
+let confirmCallback = null;
+let lastApiResponseText = '';
+let editingCmdIdx = -1;
+let sshLibraries = safeParse(localStorage.getItem('rc_libraries'), { '默认库': [] });
+let localLibraries = safeParse(localStorage.getItem('rc_local_libraries'), { '本地默认库': [] });
+let currentLibrary = localStorage.getItem(currentMode === 'ssh' ? 'rc_current_lib' : 'rc_local_current_lib') || '默认库';
+let apis = safeParse(localStorage.getItem('rc_apis'), []);
+const getActiveLibs = () => currentMode === 'ssh' ? sshLibraries : localLibraries;
+window.savedAccounts = safeParse(localStorage.getItem('rc_saved_accounts'), []);
+let wsReadBuffer = '';
+
+/* ===== V1.10.0 连接状态机：disconnected | connecting | connected | reconnecting ===== */
+let connState = 'disconnected';
+let manualClose = true;          // 是否用户主动断开（主动断开不自动重连）
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let reconnectScheduled = false;
+let lastAuth = null;             // 最近一次 SSH 凭据（内存，用于自动重连）
+
+/* ===== V1.10.0 任务库搜索 / 批量执行 ===== */
+let taskSearchKey = '';          // 任务搜索关键字（小写）
+let batchMode = false;           // 是否处于批量勾选模式
+const batchSelected = new Set(); // 勾选的任务（库内原始索引）
+let batchResults = {};           // 索引 -> run | ok | fail | skip
+window.batchRunning = false;
+const batchMarkWaiters = {};     // 标记 id -> 退出码回调
+let batchMarkBuf = '';           // 退出码标记跨包拼接缓冲
+
+/* ===== V1.11.2 版本检查 ===== */
+const CURRENT_VERSION = new URLSearchParams(location.search).get('appv') || '1.14.5';
+let lastUpdateInfo = null;       // 最近一次检查发现的新版本信息
+
+// 一次性访问令牌（Electron 主进程通过页面 URL 注入），WS 与 API 请求都携带
+const RC_TOKEN = new URLSearchParams(location.search).get('token') || '';
+const withToken = (u) => RC_TOKEN ? (u + (u.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(RC_TOKEN)) : u;
+const wsOrigin = () => (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host;
+
+function wsSend(obj) {
+    if(!ws || ws.readyState !== WebSocket.OPEN) return;
+    const payload = JSON.stringify(obj) + '\0';
+    ws.send(payload);
+}
+
+function handleWsMessage(rawText, jsonCallback, rawCallback) {
+    wsReadBuffer += rawText;
+    let idx;
+    while((idx = wsReadBuffer.indexOf('\0')) !== -1) {
+        const one = wsReadBuffer.slice(0, idx);
+        wsReadBuffer = wsReadBuffer.slice(idx + 1);
+        if(!one) continue;
+        try {
+            const parsed = JSON.parse(one);
+            jsonCallback(parsed);
+        } catch(e) {
+            rawCallback(one);
+        }
+    }
+}
+
+// ✅ 修复：兼容全字符（包括数字字符与多字节字符）的标准 Base64 转码算法
+function utf8ToBase64(str) {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+    }));
+}
+
+function initAccountDropdown() {
+    const datalist = $('ipAccountList');
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    window.savedAccounts.forEach(acc => {
+        if (!acc.host) return;
+        const opt = document.createElement('option');
+        opt.value = acc.host;
+        opt.label = `账号: ${acc.user || '无'} (端口:${acc.port || 22})`;
+        datalist.appendChild(opt);
+    });
+    const hostInputDom = $('hostInput');
+    const handleIpSelection = () => {
+        const val = hostInputDom.value.trim();
+        const matchedAcc = window.savedAccounts.find(a => a.host === val);
+        if (matchedAcc) {
+            if (matchedAcc.user !== undefined) $('userInput').value = matchedAcc.user;
+            if (matchedAcc.pass !== undefined) $('passInput').value = matchedAcc.pass;
+            if (matchedAcc.port !== undefined) $('portInput').value = matchedAcc.port;
+        }
+    };
+    hostInputDom.oninput = handleIpSelection;
+    hostInputDom.onchange = handleIpSelection;
+}
+
+function loadSavedLogin() {
+    initAccountDropdown();
+    const lastInfo = safeParse(localStorage.getItem('sshLoginInfo'), null);
+    if (lastInfo) {
+        if (lastInfo.host) $('hostInput').value = lastInfo.host;
+        if (lastInfo.port) $('portInput').value = lastInfo.port;
+        if (lastInfo.user) $('userInput').value = lastInfo.user;
+        if (lastInfo.pass) $('passInput').value = lastInfo.pass;
+        $('saveLoginInfo').checked = true;
+    }
+}
+
+/* 单终端实现已迁移至 terminals.js */
+
+function toggleTasksPanel() {
+    const collapsed = document.body.classList.toggle('tasks-collapsed');
+    $('toggleTasksBtn').classList.toggle('active', !collapsed);
+    closeHistoryPopover();
+    const fp = focusPane(); if (fp) fp.fitNow();
+}
+
+function toggleHistoryPopover() {
+    const pop = $('historyPopover');
+    const willShow = !pop.classList.contains('show');
+    pop.classList.toggle('show', willShow);
+    $('historyBtn').classList.toggle('active', willShow);
+    if (willShow) renderTerminalHistory();
+}
+
+function closeHistoryPopover() {
+    $('historyPopover').classList.remove('show');
+    $('historyBtn').classList.remove('active');
+}
+
+// 点击浮层与按钮之外的区域、或按 Esc 时关闭
+document.addEventListener('mousedown', (e) => {
+    const pop = $('historyPopover');
+    if (pop && pop.classList.contains('show') &&
+        !pop.contains(e.target) && e.target !== $('historyBtn') &&
+        !$('historyBtn').contains(e.target)) {
+        closeHistoryPopover();
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeHistoryPopover();
+});
+
+async function triggerEmergencyStop() {
+    const emergencyScript = [
+        'source ~/daxbot_base_ws/install/setup.bash',
+        "pkill -f 'ros2 action send_goal.*follow_joint_trajectory' 2>/dev/null || true",
+        'ros2 service call /right_arm_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal "{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}" 2>/dev/null || true',
+        'ros2 service call /left_arm_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal "{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}" 2>/dev/null || true',
+        'ros2 service call /waist_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal "{goal_info: {goal_id: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}" 2>/dev/null || true',
+        'ros2 service call /waist_rotation_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal "{goal_info: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}" 2>/dev/null || true',
+        'ros2 service call /head_controller/follow_joint_trajectory/_action/cancel_goal action_msgs/srv/CancelGoal "{goal_info: {uuid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], stamp: {sec: 0, nanosec: 0}}}}" 2>/dev/null || true',
+        'python3 ~/factory/factory_joint.py stop'
+    ].join(' && ');
+    if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
+        if(currentMode === 'ssh'){
+            wsSend({ type: 'execute', command: emergencyScript });
+        }else{
+            wsSend({ type: 'raw', payload: utf8ToBase64(emergencyScript + '\r') });
+        }
+        term.writeln('\x1b[31m\x1b[1m[EMERGENCY STOP] 软急停指令已注入终端链路！\x1b[0m');
+    } else {
+        term.writeln('\x1b[33m[WARN] 终端未连接，仅触发 HTTP 急停网关\x1b[0m');
+    }
+    await safeFetch('http://192.168.8.88:8792/stop', { method: 'POST' });
+    const apiStat = $('apiStatus');
+    apiStat.innerHTML = `<span>🛑 软急停信号已发送</span>`;
+    apiStat.className = 'api-status err';
+}
+
+function renderTerminalHistory() {
+    const list = $('hpList');
+    if (!list) return;
+    if (terminalHistory.length === 0) {
+        list.innerHTML = '<div class="hp-empty">暂无历史命令</div>';
+        return;
+    }
+    list.innerHTML = terminalHistory.map(cmd =>
+        `<div class="history-chip" onclick="sendHistoryCommand('${cmd.replace(/'/g, "\\'").replace(/\n/g, ' ')}')">${cmd}</div>`
+    ).join('');
+}
+
+function clearTerminalHistory() {
+    showConfirm('确认清空全部历史命令记录？', () => {
+        terminalHistory = [];
+        localStorage.removeItem('rc_term_history');
+        renderTerminalHistory();
+    });
+}
+
+function addTerminalHistory(cmd) {
+    if (!cmd || !cmd.trim()) return;
+    cmd = cmd.trim();
+    terminalHistory = [cmd, ...terminalHistory.filter(c => c !== cmd)].slice(0, 15);
+    localStorage.setItem('rc_term_history', JSON.stringify(terminalHistory));
+    renderTerminalHistory();
+}
+
+function sendHistoryCommand(cmd) {
+    if (!isConnected || !ws) { alert('终端尚未连接'); return; }
+    if(currentMode === 'ssh'){
+        wsSend({ type: 'execute', command: cmd });
+    }else{
+        wsSend({ type: 'raw', payload: utf8ToBase64(cmd + '\r') });
+    }
+    term.writeln(`\x1b[37m▶ 快捷${currentMode === 'ssh' ? '历史' : '本地'}执行: ${cmd}\x1b[0m`);
+    addTerminalHistory(cmd);
+    closeHistoryPopover();
+}
+
+/* 连接逻辑已迁移至 terminals.js */
+
+function showConfirm(text, okCallback) {
+    $('confirmText').innerText = text;
+    confirmCallback = okCallback;
+    $('confirmModal').classList.add('active');
+    $('confirmOkBtn').onclick = () => {
+        const cb = confirmCallback;
+        closeConfirmModal();
+        if (cb) cb();
+    };
+}
+
+function closeConfirmModal() {
+    $('confirmModal').classList.remove('active');
+    confirmCallback = null;
+}
+
+let promptResolve = null;
+function showPrompt(text, title = '请输入', defaultValue = '') {
+    return new Promise(resolve => {
+        $('promptTitle').innerText = title;
+        $('promptText').innerText = text;
+        const input = $('promptInput');
+        input.value = defaultValue;
+        promptResolve = resolve;
+        $('promptModal').classList.add('active');
+        setTimeout(() => { input.focus(); input.select(); }, 60);
+        input.onkeydown = e => {
+            if (e.key === 'Enter') { e.preventDefault(); $('promptOkBtn').click(); }
+            else if (e.key === 'Escape') { e.preventDefault(); closePromptModal(); }
+        };
+        $('promptOkBtn').onclick = () => {
+            const resolver = promptResolve;
+            promptResolve = null;
+            $('promptModal').classList.remove('active');
+            if (resolver) resolver(input.value);
+        };
+    });
+}
+
+function closePromptModal() {
+    $('promptModal').classList.remove('active');
+    if (promptResolve) { promptResolve(null); promptResolve = null; }
+}
+
+function openAccountManager() {
+    renderSavedAccountsModal();
+    $('accountManagerModal').classList.add('active');
+}
+
+function closeAccountManager() {
+    $('accountManagerModal').classList.remove('active');
+}
+
+function renderSavedAccountsModal() {
+    const container = $('savedAccountListContainer');
+    if (!window.savedAccounts || window.savedAccounts.length === 0) {
+        container.innerHTML = `<div class="empty-state-sm">暂无保存的账号记录</div>`;
+        return;
+    }
+    container.innerHTML = window.savedAccounts.map((acc, index) => `
+        <div style="background: var(--bg-card); border: var(--border-thin); padding: 9px 12px; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px;">
+                <span style="color: var(--text-white); font-weight: 600;">${acc.host}</span>
+                <span style="color: var(--text-gray);">(${acc.user || '无账号'} / 端口:${acc.port || 22})</span>
+            </div>
+            <button onclick="deleteSavedAccount(${index})" style="background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 3px 9px; border-radius: 4px; font-size: 11px; cursor: pointer;">删除</button>
+        </div>
+    `).join('');
+}
+
+function deleteSavedAccount(index) {
+    const target = window.savedAccounts[index];
+    showConfirm(`确认删除 IP 为 [${target.host}] 的保存记录吗？`, () => {
+        window.savedAccounts.splice(index, 1);
+        localStorage.setItem('rc_saved_accounts', JSON.stringify(window.savedAccounts));
+        initAccountDropdown();
+        renderSavedAccountsModal();
+    });
+}
+
+function clearAllSavedAccounts() {
+    showConfirm('确认清空所有已保存的账号记录吗？', () => {
+        window.savedAccounts = [];
+        localStorage.removeItem('rc_saved_accounts');
+        localStorage.removeItem('sshLoginInfo');
+        initAccountDropdown();
+        renderSavedAccountsModal();
+    });
+}
+
+function deleteCurrentLibrary() {
+    const libs = getActiveLibs();
+    if (Object.keys(libs).length <= 1) { alert('至少保留一个库'); return; }
+    showConfirm(`确认永久删除【${currentLibrary}】所有任务？`, () => {
+        delete libs[currentLibrary];
+        currentLibrary = Object.keys(libs)[0];
+        saveLibraries();
+    });
+}
+
+let _saveTimer = null;
+function persistTasksToFile() {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+        try {
+            const payload = JSON.stringify(sshLibraries);
+            fetch(withToken('/api/save-tasks'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+                keepalive: true
+            }).catch(() => {});
+        } catch (e) {}
+    }, 1000);
+}
+
+function saveLibraries() {
+    const libs = getActiveLibs();
+    if (!libs[currentLibrary]) libs[currentLibrary] = [];
+    libs[currentLibrary] = libs[currentLibrary].filter(item => item && typeof item.name === 'string' && typeof item.body === 'string');
+    if (currentMode === 'ssh') {
+        localStorage.setItem('rc_libraries', JSON.stringify(sshLibraries));
+        localStorage.setItem('rc_current_lib', currentLibrary);
+    } else {
+        localStorage.setItem('rc_local_libraries', JSON.stringify(localLibraries));
+        localStorage.setItem('rc_local_current_lib', currentLibrary);
+    }
+    renderLibs();
+    persistTasksToFile();
+}
+
+window.addEventListener('beforeunload', () => {
+    try {
+        const payload = JSON.stringify(sshLibraries);
+        const url = withToken('/api/save-tasks');
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+        } else {
+            fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+        }
+    } catch (e) {}
+});
+
+function switchLibrary(name) {
+    currentLibrary = name;
+    localStorage.setItem(currentMode === 'ssh' ? 'rc_current_lib' : 'rc_local_current_lib', name);
+    // 切库后原索引失效，清空勾选 / 结果 / 搜索
+    batchSelected.clear();
+    batchResults = {};
+    taskSearchKey = '';
+    renderLibs();
+}
+
+// 当前库中通过搜索过滤后的任务原始索引
+function getVisibleTaskIndices() {
+    const libs = getActiveLibs();
+    if (!libs[currentLibrary]) currentLibrary = Object.keys(libs)[0] || (currentMode === 'ssh' ? '默认库' : '本地默认库');
+    const arr = libs[currentLibrary] || [];
+    const key = taskSearchKey.trim().toLowerCase();
+    const idxs = [];
+    arr.forEach((c, i) => {
+        if (!c || !c.name || !c.body) return;
+        if (key && !(c.name.toLowerCase().includes(key) || c.body.toLowerCase().includes(key))) return;
+        idxs.push(i);
+    });
+    return { arr, idxs };
+}
+
+function renderLibs() {
+    const libs = getActiveLibs();
+    if (!libs[currentLibrary]) currentLibrary = Object.keys(libs)[0] || (currentMode === 'ssh' ? '默认库' : '本地默认库');
+    const arr = libs[currentLibrary] || [];
+    document.getElementById('cmdSectionTitle').innerHTML = `📋 ${currentMode === 'ssh' ? '任务' : '本地任务库'} <span class="badge" id="cmdCount">${arr.length}</span>`;
+    $('librarySelect').innerHTML = Object.keys(libs).map(k => `<option value="${k}" ${k === currentLibrary ? 'selected' : ''}>${k}</option>`).join('');
+    const listDom = $('cmdList');
+    const { idxs } = getVisibleTaskIndices();
+    // 批量能力仅 SSH 远程模式提供（本地 cmd.exe 退出码语法不同）
+    const batchWrap = $('batchToggleWrap');
+    if (batchWrap) batchWrap.style.display = currentMode === 'ssh' ? 'flex' : 'none';
+    $('batchBar').classList.toggle('show', batchMode && currentMode === 'ssh');
+    $('taskSearchInput').value = taskSearchKey;
+    if (arr.length === 0) {
+        listDom.innerHTML = `<div class="empty-state-sm">当前库无任务</div>`;
+        updateBatchBarInfo();
+        return;
+    }
+    if (idxs.length === 0) {
+        listDom.innerHTML = `<div class="empty-state-sm">没有匹配「${taskSearchKey.replace(/</g,'&lt;')}」的任务</div>`;
+        updateBatchBarInfo();
+        return;
+    }
+    listDom.innerHTML = idxs.map(i => {
+        const c = arr[i];
+        const res = batchResults[i];
+        let badge = '';
+        if (res === 'ok') badge = '<span class="res-badge res-ok" title="成功">✓</span>';
+        else if (res === 'fail') badge = '<span class="res-badge res-fail" title="失败">✗</span>';
+        else if (res === 'run') badge = '<span class="res-badge res-run" title="执行中">⏳</span>';
+        else if (res === 'skip') badge = '<span class="res-badge res-skip" title="跳过">跳过</span>';
+        const rowCls = res ? 'row-' + res : '';
+        const chk = batchMode ? `<input type="checkbox" class="item-check" ${batchSelected.has(i) ? 'checked' : ''} onchange="toggleSelectOne(${i}, this.checked)">` : '';
+        return `
+        <div class="item-card ${rowCls}">
+            <div class="item-top">
+                <span class="item-name">${chk}<span class="nm-txt">${c.name}</span>${badge}</span>
+                <div class="item-actions">
+                    <button class="btn-run" onclick="executeCommand(${i})" title="运行">▶</button>
+                    <button onclick="openCmdEdit(${i})" title="编辑">✎</button>
+                    <button class="btn-delete" onclick="delCommand(${i})" title="删除">✕</button>
+                </div>
+            </div>
+            <div class="item-body">${c.body.split('\n')[0]}</div>
+        </div>`;
+    }).join('');
+    updateBatchBarInfo();
+}
+
+/* ============ V1.10.0 任务搜索 + 批量执行 ============ */
+function onTaskSearch(v) {
+    taskSearchKey = v;
+    renderLibs();
+}
+
+function resetBatchState() {
+    batchMode = false;
+    window.batchRunning = false;
+    batchSelected.clear();
+    batchResults = {};
+    taskSearchKey = '';
+    const chk = $('batchModeChk'); if (chk) chk.checked = false;
+    const bar = $('batchBar'); if (bar) bar.classList.remove('show');
+    const inp = $('taskSearchInput'); if (inp) inp.value = '';
+}
+
+function toggleBatchMode(on) {
+    if (on && currentMode !== 'ssh') {
+        $('batchModeChk').checked = false;
+        alert('批量执行仅支持 SSH 远程模式（本地 Shell 不做退出码判定）');
+        return;
+    }
+    batchMode = on;
+    if (!on) batchSelected.clear();
+    batchResults = {};
+    $('batchBar').classList.toggle('show', on);
+    renderLibs();
+}
+
+function exitBatchMode() {
+    if (window.batchRunning) { alert('批量执行进行中，请等待完成'); return; }
+    batchMode = false;
+    $('batchModeChk').checked = false;
+    batchSelected.clear();
+    batchResults = {};
+    renderLibs();
+}
+
+function toggleSelectOne(i, on) {
+    if (on) batchSelected.add(i); else batchSelected.delete(i);
+    updateBatchBarInfo();
+}
+
+function toggleSelectAll(on) {
+    const { idxs } = getVisibleTaskIndices();
+    if (on) idxs.forEach(i => batchSelected.add(i));
+    else idxs.forEach(i => batchSelected.delete(i));
+    renderLibs();
+}
+
+function updateBatchBarInfo() {
+    const info = $('batchSelInfo');
+    if (!info) return;
+    info.textContent = `已选 ${batchSelected.size}`;
+    const all = $('batchSelectAll');
+    const { idxs } = getVisibleTaskIndices();
+    all.checked = idxs.length > 0 && idxs.every(i => batchSelected.has(i));
+}
+
+function openBatchModal() {
+    if (currentMode !== 'ssh' || !isConnected) { alert('请先建立 SSH 连接'); return; }
+    if (batchSelected.size === 0) { alert('请先勾选要执行的任务'); return; }
+    $('batchModalSub').textContent = `将按列表顺序在当前 SSH 会话中执行已勾选的 ${batchSelected.size} 条任务，并依据每条命令的退出码标记成功 / 失败`;
+    $('batchModal').classList.add('active');
+}
+
+function closeBatchModal() { $('batchModal').classList.remove('active'); }
+
+// 解析任务中的 {{变量}}，用户取消返回 null
+async function resolveVars(text) {
+    const matches = [...text.matchAll(/\{\{([^}]+)\}\}/g)];
+    const vars = [...new Set(matches.map(m => m[1].trim()))];
+    for (let v of vars) {
+        const val = await showPrompt(`变量【${v}】值：`, '任务变量');
+        if (val === null) return null;
+        text = text.replace(new RegExp(`\\{\\{\\s*${escapeRegExp(v)}\\s*\\}\\}`, 'g'), val);
+    }
+    return text;
+}
+
+async function runBatch() {
+    if (window.batchRunning) return;
+    const intervalSec = Math.max(0, parseFloat($('batchIntervalInput').value));
+    const intervalMs = Number.isFinite(intervalSec) ? intervalSec * 1000 : 1000;
+    const timeoutSec = Math.max(5, parseInt($('batchTimeoutInput').value, 10) || 60);
+    const stopOnFail = $('batchStopOnFailChk').checked;
+    const arr = getActiveLibs()[currentLibrary] || [];
+    const indices = [...batchSelected].sort((a, b) => a - b).filter(i => arr[i]);
+    if (indices.length === 0) { closeBatchModal(); return; }
+    closeBatchModal();
+    window.batchRunning = true;
+    batchResults = {};
+    // 先统一解析变量，避免执行到一半弹窗
+    const resolved = [];
+    for (const i of indices) {
+        const t = await resolveVars(arr[i].body);
+        if (t === null) {
+            window.batchRunning = false;
+            term.writeln('\x1b[33m[BATCH] 已取消批量执行\x1b[0m');
+            return;
+        }
+        resolved.push({ i, name: arr[i].name, text: t });
+    }
+    term.writeln(`\x1b[36m[BATCH] 开始批量执行 ${resolved.length} 条任务（间隔 ${intervalMs / 1000}s，单条超时 ${timeoutSec}s，失败即停：${stopOnFail ? '是' : '否'}）\x1b[0m`);
+    term.writeln('\x1b[33m[BATCH] 批量执行期间终端输入已临时锁定，结束后自动恢复\x1b[0m');
+    // 临时关闭远端 shell 的输入回显：命令行与标记行都不会显示，终端只保留真实输出。
+    // stty 行本身会回显（短行），随后用光标序列把它和空提示符一起擦掉。
+    const rcSleep = ms => new Promise(r => setTimeout(r, ms));
+    wsSend({ type: 'raw', payload: utf8ToBase64('stty -echo\n') });
+    await rcSleep(250);
+    wsSend({ type: 'raw', payload: utf8ToBase64("printf '\\033[2K\\033[1A\\033[2K\\r'\n") });
+    await rcSleep(300);
+    let okN = 0, failN = 0, skipN = 0;
+    let failed = false;
+    try {
+        for (let k = 0; k < resolved.length; k++) {
+            const { i, name, text } = resolved[k];
+            if (failed && stopOnFail) {
+                batchResults[i] = 'skip';
+                skipN++;
+                renderLibs();
+                continue;
+            }
+            batchResults[i] = 'run';
+            renderLibs();
+            term.writeln(`\x1b[36m[BATCH] (${k + 1}/${resolved.length}) ▶ ${name}\x1b[0m`);
+            const code = await runOneBatchCmd(text, timeoutSec * 1000);
+            if (code === 0) {
+                batchResults[i] = 'ok';
+                okN++;
+                term.writeln(`\x1b[32m[BATCH] ✓ ${name} 成功（退出码 0）\x1b[0m`);
+            } else {
+                batchResults[i] = 'fail';
+                failN++;
+                failed = true;
+                term.writeln(`\x1b[31m[BATCH] ✗ ${name} 失败（退出码 ${code === -1 ? '超时 / 无响应' : code}）\x1b[0m`);
+            }
+            renderLibs();
+            if (k < resolved.length - 1) await rcSleep(intervalMs);
+        }
+        term.writeln(`\x1b[36m[BATCH] 执行结束：成功 ${okN} / 失败 ${failN} / 跳过 ${skipN}\x1b[0m`);
+    } finally {
+        // 无论成功、失败即停还是超时，都必须恢复回显，否则终端会“看不见输入”
+        wsSend({ type: 'raw', payload: utf8ToBase64('stty echo\n') });
+        await rcSleep(150);
+        window.batchRunning = false;
+    }
+}
+
+/* runOneBatchCmd 以 terminals.js 中 per-pane 版本为准 */
+
+async function executeCommand(index) {
+    const cmd = getActiveLibs()[currentLibrary][index];
+    if (!cmd) return;
+    const text = await resolveVars(cmd.body);
+    if (text === null) return;
+    const pane = window.focusPane ? window.focusPane() : null;
+    if (!pane || !pane.isOpen()) { alert((pane && pane.mode === 'ssh') ? 'SSH 未连接' : '本地终端未就绪'); return; }
+    if(pane.mode === 'ssh'){
+        pane.send({ type: 'execute', command: text });
+    }else{
+        pane.send({ type: 'raw', payload: utf8ToBase64(text.replace(/\r?\n/g, '\r') + '\r') });
+    }
+    pane.term.writeln(`\x1b[37m▶ 执行任务：${cmd.name}\x1b[0m`);
+    addTerminalHistory(text.split('\n')[0]);
+}
+
+async function addLibrary() {
+    const name = await showPrompt('输入新任务库名称', '新建任务库');
+    if (name === null) return;
+    if (!name.trim()) { alert('库名不能为空'); return; }
+    const trimmed = name.trim();
+    const libs = getActiveLibs();
+    if (libs[trimmed]) { alert('库名已存在'); return; }
+    libs[trimmed] = [];
+    currentLibrary = trimmed;
+    saveLibraries();
+}
+
+function importData() {
+    $('importFile').value = '';
+    $('importModal').classList.add('active');
+}
+
+function closeImportModal() {
+    $('importModal').classList.remove('active');
+}
+
+function runImport() {
+    const file = $('importFile').files[0];
+    if (!file) { alert('请选择 JSON 文件'); return; }
+    const mode = document.querySelector('input[name="importMode"]:checked').value;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (typeof data !== 'object' || Array.isArray(data)) throw new Error('文件格式错误');
+            const libs = getActiveLibs();
+            if (mode === 'overwrite') {
+                Object.keys(libs).forEach(k => delete libs[k]);
+                Object.assign(libs, data);
+            } else {
+                for (let k in data) {
+                    if (!libs[k]) libs[k] = [];
+                    libs[k].push(...data[k]);
+                    const map = new Set(), unique = [];
+                    libs[k].forEach(item => {
+                        const key = item.name + '||' + item.body;
+                        if (!map.has(key)) { map.add(key); unique.push(item); }
+                    });
+                    libs[k] = unique.filter(i => i && i.name && i.body);
+                }
+            }
+            currentLibrary = Object.keys(libs)[0];
+            saveLibraries();
+            closeImportModal();
+            alert('导入完成');
+        } catch(err) { alert(`导入失败：${err.message}`); }
+    };
+    reader.readAsText(file);
+}
+
+function exportData() {
+    downloadJSON(getActiveLibs(), currentMode === 'ssh' ? 'ssh任务库.json' : '本地任务库.json');
+}
+
+function openCmdAdd() {
+    editingCmdIdx = -1;
+    $('cmdNameInput').value = ''; $('cmdBodyInput').value = '';
+    $('cmdModalTitle').innerText = '添加任务';
+    $('cmdModal').classList.add('active');
+}
+
+function openCmdEdit(i) {
+    const c = getActiveLibs()[currentLibrary][i];
+    if (!c) return;
+    editingCmdIdx = i;
+    $('cmdNameInput').value = c.name; $('cmdBodyInput').value = c.body;
+    $('cmdModalTitle').innerText = '编辑任务';
+    $('cmdModal').classList.add('active');
+}
+
+function closeCmdModal() {
+    $('cmdModal').classList.remove('active');
+    editingCmdIdx = -1;
+}
+
+function saveCmdModal() {
+    const name = $('cmdNameInput').value.trim();
+    const body = $('cmdBodyInput').value.trim();
+    if (!name || !body) return;
+    const targetList = getActiveLibs()[currentLibrary];
+    if (editingCmdIdx === -1) targetList.push({ name, body });
+    else targetList[editingCmdIdx] = { name, body };
+    // 任务列表变化后原勾选索引可能错位，清空批量状态
+    batchSelected.clear();
+    batchResults = {};
+    saveLibraries();
+    closeCmdModal();
+}
+
+function delCommand(i) {
+    const libs = getActiveLibs();
+    const arr = libs[currentLibrary];
+    if (!arr || !arr[i]) return;
+    showConfirm(`确认删除任务【${arr[i].name}】？`, () => {
+        arr.splice(i, 1);
+        batchSelected.clear();
+        batchResults = {};
+        saveLibraries();
+    });
+}
+
+const saveApis = () => { localStorage.setItem('rc_apis', JSON.stringify(apis)); renderApis(); };
+
+function renderApis() {
+    const list = $('apiList');
+    $('apiCount').innerText = apis.length;
+    if (apis.length === 0) {
+        list.innerHTML = `<div class="empty-state-sm">暂无接口</div>`;
+        $('quickApiGroup').innerHTML = '';
+        return;
+    }
+    list.innerHTML = apis.map((a, i) => `
+        <div class="item-card">
+            <div class="item-top">
+                <span class="item-name">${a.name}</span>
+                <div class="item-actions">
+                    <button class="btn-run" onclick="executeApi(${i})">▶</button>
+                    <button class="btn-delete" onclick="delApi(${i})">✕</button>
+                </div>
+            </div>
+            <div class="item-body"><span class="tag">${a.method}</span>${a.path}</div>
+        </div>
+    `).join('');
+    $('quickApiGroup').innerHTML = apis.slice(0, 4).map((a, i) => `
+        <button class="api-btn-run" onclick="executeApi(${i})">${a.name}</button>
+    `).join('');
+}
+
+function exportApiData() { downloadJSON(apis, 'api接口.json'); }
+
+function importApiData() {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = ev => {
+            try {
+                const d = JSON.parse(ev.target.result);
+                if (!Array.isArray(d)) throw new Error('文件需为接口数组');
+                apis = d.filter(item => item.name && item.path && item.method);
+                saveApis();
+                alert('接口导入成功');
+            } catch(err) { alert(`导入失败：${err.message}`); }
+        };
+        r.readAsText(f);
+    };
+    input.click();
+}
+
+async function executeApi(i) {
+    const api = apis[i];
+    const ip = $('robotIpInput').value.trim() || '192.168.1.100';
+    const url = `http://${ip}:8080${api.path}`;
+    const statusDom = $('apiStatus');
+    statusDom.innerHTML = `<span>⏳ 请求中</span>`;
+    statusDom.className = 'api-status load';
+    const opt = { method: api.method, headers: { 'Content-Type': 'application/json' } };
+    if (api.body?.trim()) opt.body = api.body;
+    const res = await safeFetch(url, opt);
+    if (!res) {
+        lastApiResponseText = '网络连接失败';
+        statusDom.innerHTML = `<span>❌ 请求失败</span><span onclick="openApiResModal('${api.name}')" style="cursor:pointer;text-decoration:underline;">查看详情</span>`;
+        statusDom.className = 'api-status err';
+        return;
+    }
+
+    let text = await res.text();
+    try { lastApiResponseText = JSON.stringify(JSON.parse(text), null, 2); } catch { lastApiResponseText = text; }
+
+    statusDom.innerHTML = `<span>✅ ${res.status}</span><span onclick="openApiResModal('${api.name}')" style="cursor:pointer;text-decoration:underline;">查看详情</span>`;
+    statusDom.className = 'api-status ok';
+    term.writeln(`\x1b[37m[API] ${api.name} ${text.slice(0, 120)}${text.length > 120 ? '...' : ''}\x1b[0m`);
+}
+
+function openApiResModal(name) {
+    $('apiResSub').innerText = `【${name}】返回数据`;
+    $('apiResBodyInput').value = lastApiResponseText;
+    $('apiResModal').classList.add('active');
+}
+
+function closeApiResModal() {
+    $('apiResModal').classList.remove('active');
+}
+
+function openApiAdd() {
+    $('apiNameInput').value = ''; $('apiPathInput').value = ''; $('apiBodyInput').value = '';
+    $('apiModal').classList.add('active');
+}
+
+function closeApiModal() {
+    $('apiModal').classList.remove('active');
+}
+
+function saveApiModal() {
+    const name = $('apiNameInput').value.trim();
+    const method = $('apiMethodInput').value;
+    const path = $('apiPathInput').value.trim();
+    const body = $('apiBodyInput').value.trim();
+    if (!name || !path) return;
+
+    apis.push({ name, method, path, body });
+    saveApis();
+    closeApiModal();
+}
+
+function delApi(i) {
+    showConfirm(`删除接口【${apis[i].name}】`, () => {
+        apis.splice(i, 1);
+        saveApis();
+    });
+}
+
+/* ============ V1.10.0 轻量版本检查（只提示，不自动替换） ============ */
+// version.json 约定：{"version":"1.11.0","url":"http://.../RemoteCommander.exe","linuxUrl":"http://.../xxx.tar.gz","notes":"更新说明"}
+function cmpVer(a, b) {
+    const pa = String(a).split('.').map(x => parseInt(x, 10) || 0);
+    const pb = String(b).split('.').map(x => parseInt(x, 10) || 0);
+    const n = Math.max(pa.length, pb.length);
+    for (let i = 0; i < n; i++) {
+        const x = pa[i] || 0, y = pb[i] || 0;
+        if (x > y) return 1;
+        if (x < y) return -1;
+    }
+    return 0;
+}
+
+// ===== Electron 桌面端走 electron-updater 自动更新；纯浏览器回退手动检查 =====
+const IS_ELECTRON = !!window.updater;
+const escHtml = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+function renderUpdState(s) {
+    const result = $('updateResult');
+    const btn = $('updateCheckBtn');
+    if (!result || !s || !s.phase) return;
+    if (s.phase === 'checking') { result.innerHTML = '<span class="info">正在检查更新…</span>'; return; }
+    if (s.phase === 'available') {
+        btn.classList.add('has-update');
+        btn.querySelector('.upd-txt').textContent = `🔴 新版 V${s.version}`;
+        result.innerHTML = `<span class="ok">● 发现新版本 V${s.version}（当前 V${CURRENT_VERSION}）</span>`
+            + (s.notes ? `<div class="upd-notes">${escHtml(s.notes)}</div>` : '')
+            + `<button class="update-goto" onclick="startDownload()">下载更新</button>`;
+        return;
+    }
+    if (s.phase === 'progress') {
+        const fname = s.version ? `RemoteCommander-Setup-${s.version}.exe` : '更新包';
+        result.innerHTML = `<div class="upd-file">${escHtml(fname)}</div>`
+            + `<div class="upd-pbar"><div class="upd-pfill" style="width:${s.percent}%"></div></div>`
+            + `<div class="upd-pinfo">${s.percent}% · ${s.transferred}/${s.total} MB · ${s.speed>=1024?(s.speed/1024).toFixed(1)+' MB/s':s.speed+' KB/s'}</div>`
+            + `<button class="update-goto upd-cancel" onclick="cancelDownload()">取消下载</button>`;
+        return;
+    }
+    if (s.phase === 'cancelled') {
+        result.innerHTML = `<span class="info">● 已取消下载</span>`
+            + `<button class="update-goto" onclick="startDownload()">重新下载</button>`;
+        return;
+    }
+    if (s.phase === 'downloaded') {
+        if (s.external) {
+            result.innerHTML = `<span class="ok">● 已在浏览器中打开 V${s.version} 下载链接</span>`
+                + `<div class="upd-hint">请在浏览器中等待下载完成，然后双击下载好的 RemoteCommander-Setup-${s.version}.exe 安装包。</div>`;
+        } else {
+            result.innerHTML = `<span class="ok">● V${s.version} 已下载完成</span>`
+                + `<button class="update-goto" onclick="installUpdate()">立即重启安装</button>`
+                + `<div class="upd-hint">也可稍后自行重启，安装将在退出时完成。</div>`;
+        }
+        return;
+    }
+    if (s.phase === 'not-available') {
+        btn.classList.remove('has-update');
+        btn.querySelector('.upd-txt').textContent = '检查更新';
+        result.innerHTML = `<span class="ok">● 当前已是最新版本（V${CURRENT_VERSION}）</span>`;
+        return;
+    }
+    if (s.phase === 'error') {
+        result.innerHTML = `<span class="bad">更新失败：${escHtml(s.message)}。请确认更新源地址可从本机访问（公网 / 内网均可）。</span>`;
+    }
+}
+async function startDownload() {
+    const r = $('updateResult');
+    if (r) r.innerHTML = '<span class="info">正在开始下载…</span>';
+    try { const res = await window.updater.download(); if (res && res.ok === false) { if (r) r.innerHTML = '<span class="bad">下载失败：' + escHtml(res.error || '未知错误') + '</span>'; } }
+    catch (e) { if (r) r.innerHTML = '<span class="bad">下载失败：' + escHtml(String(e && e.message || e)) + '</span>'; }
+}
+async function cancelDownload() { return window.updater.cancel(); }
+async function installUpdate() { return window.updater.install(); }
+if (IS_ELECTRON && window.updater.onState) window.updater.onState(renderUpdState);
+
+async function checkUpdateLegacy(showNoUpdate) {
+    const url = (localStorage.getItem('rc_update_url') || '').trim();
+    const result = $('updateResult');
+    if (!url) {
+        if (showNoUpdate && result) {
+            result.innerHTML = '<span class="bad">未配置更新源地址，已跳过检查。\n请在内网服务器 / NAS 上放置 version.json，并填写其完整 URL。</span>';
+        }
+        return null;
+    }
+    if (result) result.textContent = '正在检查…';
+    try {
+        // 经本机后端代理访问，规避跨源（CORS）限制；超时略宽于后端的 6s
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(withToken('/api/check-update?url=' + encodeURIComponent(url)),
+            { cache: 'no-store', signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) {
+            let msg = 'HTTP ' + res.status;
+            try { const ej = await res.json(); if (ej && ej.error) msg = ej.error; } catch (e) {}
+            throw new Error(msg);
+        }
+        const data = await res.json();
+        if (!data || !data.version) throw new Error('version.json 缺少 version 字段');
+        lastUpdateInfo = data;
+        const newer = cmpVer(data.version, CURRENT_VERSION) > 0;
+        const btn = $('updateCheckBtn');
+        if (newer) {
+            btn.classList.add('has-update');
+            btn.querySelector('.upd-txt').textContent = `🔴 新版 V${data.version}`;
+        } else {
+            btn.classList.remove('has-update');
+            btn.querySelector('.upd-txt').textContent = '检查更新';
+        }
+        if (result) {
+            if (newer) {
+                const dlUrl = data.url || data.linuxUrl || '';
+                result.innerHTML =
+                    `<span class="ok">● 发现新版本 V${data.version}（当前 V${CURRENT_VERSION}）</span>\n\n` +
+                    `${(data.notes || '无更新说明').replace(/&/g,'&amp;').replace(/</g,'&lt;')}` +
+                    (dlUrl ? `\n\n<button class="update-goto" onclick="gotoUpdate()">前往下载页面</button>`
+                           : '\n\n（version.json 未提供下载地址 url / linuxUrl）');
+            } else {
+                result.innerHTML = `<span class="ok">● 当前已是最新版本（V${CURRENT_VERSION}）</span>`;
+            }
+        }
+        return data;
+    } catch (err) {
+        if (result) result.innerHTML = `<span class="bad">检查失败：${String(err && err.message || err)}。\n请确认更新源地址可从本机访问（内网 / 公网均可）。</span>`;
+        return null;
+    }
+}
+
+async function checkUpdate(showNoUpdate) {
+    if (IS_ELECTRON) {
+        const r = await window.updater.check();
+        if (r && r.skipped && showNoUpdate && $('updateResult')) {
+            $('updateResult').innerHTML = '<span class="bad">未配置更新源地址，已跳过检查。请在更新源目录放置 latest.yml 与安装包，并填写该目录 URL。</span>';
+        }
+        return r;
+    }
+    return checkUpdateLegacy(showNoUpdate);
+}
+
+function gotoUpdate() {
+    if (!lastUpdateInfo) return;
+    const isWin = (navigator.platform || '').toLowerCase().includes('win');
+    const target = (isWin ? (lastUpdateInfo.url || lastUpdateInfo.linuxUrl)
+                         : (lastUpdateInfo.linuxUrl || lastUpdateInfo.url)) || '';
+    if (target) window.open(target, '_blank');
+}
+
+async function openUpdateModal() {
+    $('curVerLabel').textContent = CURRENT_VERSION;
+    if (IS_ELECTRON) {
+        const cfg = await window.updater.getConfig();
+        $('updateUrlInput').value = (cfg && cfg.source) || '';
+    } else {
+        $('updateUrlInput').value = localStorage.getItem('rc_update_url') || '';
+    }
+    $('updateResult').textContent = '点击“保存并检查”立即查询';
+    $('updateModal').classList.add('active');
+}
+
+function closeUpdateModal() { $('updateModal').classList.remove('active'); }
+
+async function saveUpdateUrlAndCheck() {
+    const u = $('updateUrlInput').value.trim();
+    const btn = $('updateCheckBtn');
+    if (IS_ELECTRON) {
+        await window.updater.setSource(u);
+    } else {
+        localStorage.setItem('rc_update_url', u);
+    }
+    if (!u) {
+        $('updateResult').innerHTML = '<span class="bad">更新源已清空，今后启动将不再检查更新。</span>';
+        btn.classList.remove('has-update');
+        btn.querySelector('.upd-txt').textContent = '检查更新';
+        return;
+    }
+    checkUpdate(true);
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        const activeId = document.activeElement ? document.activeElement.id : '';
+        if (['hostInput', 'portInput', 'userInput', 'passInput'].includes(activeId)) {
+            e.preventDefault();
+            createSsh('split');
+        }
+    }
+    if (e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        toggleHistoryPopover();
+    }
+});
+
+async function ensureDefaultLibraries() {
+    if (localStorage.getItem('rc_libraries') !== null) return;
+    try {
+        const res = await fetch(withToken('/api/default-tasks'));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            sshLibraries = data;
+            saveLibraries();
+        }
+    } catch (e) {
+        console.warn('自动加载预置任务库失败:', e);
+    }
+}
+
+ensureDefaultLibraries().then(() => renderLibs());
+renderApis();
+renderTerminalHistory();
+loadSavedLogin();
+
+// 启动横幅由 terminals.js 输出
+
+// 浏览器开发环境：启动 3 秒后静默检查（Electron 桌面端由主进程自动检查）
+if (!IS_ELECTRON) {
+    setTimeout(() => {
+        if (localStorage.getItem('rc_update_url')) checkUpdate(false);
+    }, 3000);
+}
+
+/* ===== SFTP 文件传输功能 ===== */
+let sftpConnected = false;
+let sftpCurrentPath = '';
+let sftpHomePath = '';
+let sftpPendingAttach = null;
+let sftpActiveTarget = 'orin';
+let sftpSel = new Set();   // 当前目录下被勾选、用于打包下载的项
+
+window.onSshJumpDetected = function(user, host) {
+    sftpPendingAttach = { user, host, autoTried: true };
+    let pass = null;
+    try { const creds = JSON.parse(localStorage.getItem('rc_jump_creds') || '{}'); pass = creds[host] || null; } catch(e){}
+    sftpDoAttach(user, host, pass || user, !pass);
+};
+function sftpDoAttach(user, host, pass, autoTried) {
+    sftpPendingAttach = { user, host, autoTried: !!autoTried };
+    $('sftpCredBar').classList.remove('open');
+    sftpSetProgress('正在经主连接附加 ' + host + ' 的 SFTP ...');
+    sftpSend({ type: 'sftp-attach', host, port: 22, username: user, password: pass });
+}
+window.onSshJumpExit = function() { sftpSend({ type: 'sftp-detach' }); };
+function sftpDetach() { sftpSend({ type: 'sftp-detach' }); }
+function sftpCredSubmit() {
+    const pass = $('sftpCredPass').value;
+    if (!pass || !sftpPendingAttach) return;
+    const { user, host } = sftpPendingAttach;
+    try {
+        const creds = JSON.parse(localStorage.getItem('rc_jump_creds') || '{}');
+        creds[host] = pass;
+        localStorage.setItem('rc_jump_creds', JSON.stringify(creds));
+    } catch(e){}
+    sftpDoAttach(user, host, pass, false);
+}
+
+window.onSshJumpDetected = function(user, host) {
+    sftpPendingAttach = { user, host, autoTried: true };
+    let pass = null;
+    try { const creds = JSON.parse(localStorage.getItem('rc_jump_creds') || '{}'); pass = creds[host] || null; } catch(e){}
+    sftpDoAttach(user, host, pass || user, !pass);
+};
+function sftpDoAttach(user, host, pass, autoTried) {
+    sftpPendingAttach = { user, host, autoTried: !!autoTried };
+    $('sftpCredBar').classList.remove('open');
+    sftpSetProgress('正在经主连接附加 ' + host + ' 的 SFTP ...');
+    sftpSend({ type: 'sftp-attach', host, port: 22, username: user, password: pass });
+}
+window.onSshJumpExit = function() { sftpSend({ type: 'sftp-detach' }); };
+function sftpDetach() { sftpSend({ type: 'sftp-detach' }); }
+function sftpCredSubmit() {
+    const pass = $('sftpCredPass').value;
+    if (!pass || !sftpPendingAttach) return;
+    const { user, host } = sftpPendingAttach;
+    try {
+        const creds = JSON.parse(localStorage.getItem('rc_jump_creds') || '{}');
+        creds[host] = pass;
+        localStorage.setItem('rc_jump_creds', JSON.stringify(creds));
+    } catch(e){}
+    sftpDoAttach(user, host, pass, false);
+}
+
+function switchRightPanel(tab) {
+    const tasksPanel = $('tasksPanel');
+    const apiSection = document.querySelector('.api-section');
+    const sftpSection = $('sftpSection');
+    const tabTasks = $('tabBtnTasks');
+    const tabSftp = $('tabBtnSftp');
+    if (tab === 'sftp') {
+        if (tasksPanel) tasksPanel.style.display = 'none';
+        if (apiSection) apiSection.style.display = 'none';
+        if (sftpSection) sftpSection.classList.add('active');
+        tabTasks.classList.remove('active');
+        tabSftp.classList.add('active');
+        if (sftpConnected) sftpLs(sftpCurrentPath);
+    } else {
+        if (tasksPanel) tasksPanel.style.display = '';
+        if (apiSection) apiSection.style.display = '';
+        if (sftpSection) sftpSection.classList.remove('active');
+        tabTasks.classList.add('active');
+        tabSftp.classList.remove('active');
+    }
+}
+
+function getActiveSshPane() {
+    if (typeof activePane !== 'undefined' && activePane && activePane.mode === 'ssh' && activePane.isOpen()) return activePane;
+    if (window.focusPane) {
+        const p = window.focusPane();
+        if (p && p.mode === 'ssh' && p.isOpen()) return p;
+    }
+    return null;
+}
+
+function sftpSend(obj) {
+    const p = getActiveSshPane();
+    if (!p) { sftpSetStatus('请先连接 SSH 终端'); return false; }
+    p.send(obj);
+    return true;
+}
+
+function sftpSetStatus(msg) {
+    $('sftpList').innerHTML = '<div class="sftp-status">' + msg + '</div>';
+}
+
+function sftpSetProgress(msg) {
+    const el = $('sftpProgress');
+    if (msg) { el.style.display = ''; el.textContent = msg; }
+    else el.style.display = 'none';
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
+    return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+}
+
+function sftpLs(path) {
+    if (!sftpConnected) { sftpSetStatus('未连接 SSH'); return; }
+    sftpSetStatus('加载中...');
+    sftpSend({ type: 'sftp-ls', path: path || sftpCurrentPath || '.' });
+}
+
+function sftpRefresh() { sftpLs(sftpCurrentPath); }
+
+function sftpGoUp() {
+    if (!sftpCurrentPath) return;
+    const parts = sftpCurrentPath.replace(/\/$/, '').split('/');
+    parts.pop();
+    const parent = parts.join('/') || '/';
+    sftpLs(parent);
+}
+
+function renderSftpList(path, items) {
+    sftpCurrentPath = path;
+    sftpSel.clear();
+    sftpUpdateTarBtn();
+    $('sftpPath').textContent = '📂 ' + path;
+    const list = $('sftpList');
+    if (!items || items.length === 0) {
+        list.innerHTML = '<div class="sftp-status">空目录</div>';
+        return;
+    }
+    list.innerHTML = '';
+    items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'sftp-item';
+        const icon = item.isDir ? '📁' : (item.isLink ? '🔗' : '📄');
+        const sizeText = item.isDir ? '-' : formatSize(item.size);
+        row.innerHTML =
+            '<input type="checkbox" class="sftp-check" title="勾选用于打包下载">' +
+            '<span class="sftp-icon">' + icon + '</span>' +
+            '<span class="sftp-name"></span>' +
+            '<span class="sftp-size">' + sizeText + '</span>' +
+            '<span class="sftp-perm">' + item.rights + '</span>' +
+            '<span class="sftp-actions">' +
+                '<button class="dl" title="下载">⬇</button>' +
+                '<button class="rn" title="重命名">✎</button>' +
+                '<button class="rm" title="删除">🗑</button>' +
+            '</span>';
+        row.querySelector('.sftp-name').textContent = item.name;
+        const check = row.querySelector('.sftp-check');
+        check.addEventListener('click', e => e.stopPropagation());
+        check.addEventListener('change', () => {
+            if (check.checked) { sftpSel.add(item.name); row.classList.add('sel'); }
+            else { sftpSel.delete(item.name); row.classList.remove('sel'); }
+            sftpUpdateTarBtn();
+        });
+        row.addEventListener('dblclick', () => {
+            const full = path.replace(/\/$/, '') + '/' + item.name;
+            if (item.isDir) sftpLs(full);
+            else if (item.isLink) sftpOpenLink(full);
+            else sftpDownload(full, item.name);
+        });
+        row.querySelector('.dl').addEventListener('click', e => {
+            e.stopPropagation();
+            sftpDownload(path.replace(/\/$/, '') + '/' + item.name, item.name);
+        });
+        row.querySelector('.rm').addEventListener('click', e => {
+            e.stopPropagation();
+            const full = path.replace(/\/$/, '') + '/' + item.name;
+            showConfirm('确认删除 ' + item.name + ' 吗？' + (item.isDir ? '（文件夹将递归删除）' : ''), () => {
+                sftpSend({ type: 'sftp-delete', path: full, isDir: item.isDir });
+            });
+        });
+        row.querySelector('.rn').addEventListener('click', e => {
+            e.stopPropagation();
+            const full = path.replace(/\/$/, '') + '/' + item.name;
+            const newName = prompt('新名称:', item.name);
+            if (newName && newName !== item.name) {
+                sftpSend({ type: 'sftp-rename', oldPath: full, newPath: path.replace(/\/$/, '') + '/' + newName });
+            }
+        });
+        list.appendChild(row);
+    });
+}
+
+function sftpOpenLink(linkPath) {
+    sftpSetProgress('正在打开 ' + linkPath.split('/').pop() + ' ...');
+    sftpSend({ type: 'sftp-open-link', path: linkPath });
+}
+
+// ===== SFTP 传输进度（下载/上传共用）=====
+let sftpT = { active:false, dir:'', name:'', total:0, transferred:0, startedAt:0, cancelled:false, path:'' };
+let sftpUpFile=null, sftpUpPath='', sftpUpIdx=0;
+const SFTP_CHUNK = 262144;
+function sftpRenderT() {
+    const el = $('sftpProgress');
+    if (!el) return;
+    if (!sftpT.active) { el.style.display='none'; el.innerHTML=''; return; }
+    el.style.display='block';
+    const pct = sftpT.total>0 ? Math.min(100, Math.round(sftpT.transferred/sftpT.total*100)) : 0;
+    const elapsed = Math.max(1,(Date.now()-sftpT.startedAt)/1000);
+    const speed = Math.round((sftpT.transferred/1024)/elapsed);
+    el.innerHTML = '<div class="sftp-tfile">'+escHtml(sftpT.name)+'</div>'
+        + '<div class="sftp-tbar"><div class="sftp-tfill" style="width:'+pct+'%"></div></div>'
+        + '<div class="sftp-tinfo">'+pct+'% · '+formatSize(sftpT.transferred)+'/'+formatSize(sftpT.total)+' · '+(speed>=1024?(speed/1024).toFixed(1)+' MB/s':speed+' KB/s')+'</div>'
+        + '<button class="sftp-tcancel" onclick="sftpCancelTransfer()">取消</button>';
+}
+function sftpCancelTransfer() {
+    if (!sftpT.active) return;
+    sftpT.cancelled = true;
+    if (sftpT.dir === 'down') sftpSend({ type:'sftp-abort', path: sftpT.path });
+}
+function sftpSendNextChunk() {
+    if (!sftpT.active || sftpT.dir !== 'up') return;
+    if (sftpT.cancelled) {
+        sftpSend({ type:'sftp-write-end', path: sftpUpPath });
+        sftpT.active=false; sftpRenderT(); return;
+    }
+    const start = sftpUpIdx*SFTP_CHUNK;
+    if (start >= sftpUpFile.size) { sftpSend({ type:'sftp-write-end', path: sftpUpPath }); return; }
+    const end = Math.min(start+SFTP_CHUNK, sftpUpFile.size);
+    const slice = sftpUpFile.slice(start, end);
+    const r = new FileReader();
+    r.onload = () => {
+        sftpSend({ type:'sftp-write-chunk', path: sftpUpPath, data: r.result.split(',')[1] });
+        sftpUpIdx++;
+        sftpT.transferred = end;
+        sftpRenderT();
+    };
+    r.readAsDataURL(slice);
+}
+
+function sftpDownload(path, name) {
+    sftpT = { active:true, dir:'down', name:name, total:0, transferred:0, startedAt:Date.now(), cancelled:false, path:path };
+    sftpRenderT();
+    sftpSend({ type: 'sftp-read', path });
+}
+
+// 多选 → 远程 tar 打包 → 下载单个压缩包（规避逐文件权限/目录递归问题）
+function sftpTarDownload() {
+    const names = Array.from(sftpSel);
+    if (names.length === 0) { alert('请先勾选要打包的文件/文件夹'); return; }
+    const stampName = 'rc-bundle-' + Date.now();
+    sftpT = { active:true, dir:'down', name: stampName + '.tar.gz', total:0, transferred:0, startedAt:Date.now(), cancelled:false, path:'' };
+    sftpRenderT();
+    sftpSend({ type: 'sftp-tar', cwd: sftpCurrentPath, names });
+}
+
+function sftpUpdateTarBtn() {
+    const btn = $('sftpTarBtn');
+    if (!btn) return;
+    const n = sftpSel.size;
+    btn.textContent = n > 0 ? ('📦 打包下载(' + n + ')') : '📦 打包下载';
+}
+
+// 全选/取消全选当前目录
+function sftpToggleAll(cb) {
+    document.querySelectorAll('#sftpList .sftp-check').forEach(c => {
+        if (c !== cb) { c.checked = cb.checked; c.dispatchEvent(new Event('change')); }
+    });
+}
+
+function handleSftpRead(data) {
+    sftpT.active=false; sftpRenderT();
+    try {
+        const bytes = Uint8Array.from(atob(data.data), ch => ch.charCodeAt(0));
+        const blob = new Blob([bytes]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = data.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch(e) { alert('下载失败: ' + e.message); }
+}
+
+function sftpMkdir() {
+    if (!sftpConnected) return;
+    const name = prompt('文件夹名称:');
+    if (name) sftpSend({ type: 'sftp-mkdir', path: sftpCurrentPath.replace(/\/$/, '') + '/' + name });
+}
+
+function sftpUploadClick() {
+    if (!sftpConnected) { alert('请先连接 SSH'); return; }
+    $('sftpFileInput').click();
+}
+
+function sftpDoUpload(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach(file => sftpUploadFile(file));
+    event.target.value = '';
+}
+
+function sftpUploadFile(file) {
+    const targetPath = sftpCurrentPath.replace(/\/$/, '') + '/' + file.name;
+    sftpT = { active:true, dir:'up', name:file.name, total:file.size, transferred:0, startedAt:Date.now(), cancelled:false, path:targetPath };
+    sftpUpFile = file; sftpUpPath = targetPath; sftpUpIdx = 0;
+    sftpRenderT();
+    sftpSend({ type: 'sftp-write-start', path: targetPath });
+}
+
+(function setupSftpDrag() {
+    document.addEventListener('dragover', e => {
+        const sec = $('sftpSection');
+        if (sec && sec.classList.contains('active')) {
+            e.preventDefault();
+            sec.classList.add('sftp-drag-over');
+        }
+    });
+    document.addEventListener('dragleave', e => {
+        const sec = $('sftpSection');
+        if (sec && e.target === sec) sec.classList.remove('sftp-drag-over');
+    });
+    document.addEventListener('drop', e => {
+        const sec = $('sftpSection');
+        if (sec && sec.classList.contains('active')) {
+            e.preventDefault();
+            sec.classList.remove('sftp-drag-over');
+            if (!sftpConnected) { alert('请先连接 SSH'); return; }
+            Array.from(e.dataTransfer.files).forEach(f => sftpUploadFile(f));
+        }
+    });
+})();
+
+// 切换 pane/tab 时，把 SFTP 面板重新绑定到当前聚焦的连接
+window.sftpRebindToFocus = function(pane) {
+    if (pane && pane.mode === 'ssh' && pane.sftpReady) {
+        sftpConnected = true;
+        sftpHomePath = pane.sftpHome;
+        sftpCurrentPath = pane.sftpPath || pane.sftpHome;
+        sftpLs(sftpCurrentPath);
+    } else if (pane && pane.mode === 'ssh') {
+        sftpConnected = false;
+        $('sftpPath').textContent = 'SFTP 通道建立中...';
+        sftpSetStatus('该 SSH 连接的 SFTP 通道尚未就绪，请稍候');
+    } else {
+        sftpConnected = false;
+        sftpCurrentPath = '';
+        $('sftpPath').textContent = '非 SSH 连接（本地终端无 SFTP）';
+        sftpSetStatus('连接 SSH 后自动加载文件列表');
+    }
+};
+
+window.handleSftpMessage = function(res, pane) {
+    const isFocus = pane && window.focusPane && window.focusPane() === pane;
+    if (res.type === 'sftp-ready') {
+        if (pane) { pane.sftpReady = true; pane.sftpHome = res.home; pane.sftpPath = res.home; }
+        if (isFocus) {
+            sftpConnected = true;
+            sftpHomePath = res.home;
+            sftpCurrentPath = res.home;
+            sftpActiveTarget = res.target || 'orin';
+            $('sftpCredBar').classList.remove('open');
+            if (sftpActiveTarget === 'rk') {
+                $('sftpJumpInfo').textContent = '📡 SFTP 已切换到 ' + (res.username ? res.username + '@' : '') + res.host;
+                $('sftpJumpBar').classList.add('open');
+            } else {
+                $('sftpJumpBar').classList.remove('open');
+            }
+            sftpLs(res.home);
+        }
+        return true;
+    }
+    if (res.type === 'sftp-attach-error') {
+        sftpSetProgress('');
+        if (sftpPendingAttach && sftpPendingAttach.autoTried) {
+            const { user, host } = sftpPendingAttach;
+            $('sftpCredHint').textContent = '需要 ' + user + '@' + host + ' 的密码（自动尝试未成功）';
+            $('sftpCredBar').classList.add('open');
+            $('sftpCredPass').value = '';
+            setTimeout(() => $('sftpCredPass').focus(), 50);
+        } else {
+            alert('附加目标 SFTP 失败: ' + res.message);
+        }
+        return true;
+    }
+    if (res.type === 'sftp-ls') {
+        if (pane) pane.sftpPath = res.path;
+        if (isFocus) renderSftpList(res.path, res.items);
+        return true;
+    }
+    // 操作类消息只在聚焦 pane 时处理
+    if (!isFocus) return true;
+    if (res.type === 'sftp-link-download') {
+        sftpSetProgress('');
+        sftpDownload(res.path, res.name);
+        return true;
+    }
+    if (res.type === 'sftp-stat-result') {
+        sftpSetProgress('');
+        if (res.error) { alert('无法打开该链接: ' + res.error); }
+        else if (res.isDir) sftpLs(res.path);
+        else sftpDownload(res.path, res.path.split('/').pop());
+        return true;
+    }
+    if (res.type === 'sftp-progress') {
+        if (sftpT.active && sftpT.dir === 'down') { sftpT.transferred = res.transferred; sftpT.total = res.total; sftpRenderT(); }
+        return true;
+    }
+    if (res.type === 'sftp-aborted') {
+        sftpT.active=false; sftpRenderT();
+        sftpSetProgress('已取消'); setTimeout(()=>sftpSetProgress(''), 1500);
+        return true;
+    }
+    if (res.type === 'sftp-write-started') { sftpSendNextChunk(); return true; }
+    if (res.type === 'sftp-write-ack') { sftpSendNextChunk(); return true; }
+    if (res.type === 'sftp-read') { handleSftpRead(res); return true; }
+    if (res.type === 'sftp-write-done' || res.type === 'sftp-mkdir-done' ||
+        res.type === 'sftp-delete-done' || res.type === 'sftp-rename-done') {
+        sftpSetProgress('');
+        sftpRefresh();
+        return true;
+    }
+    if (res.type === 'sftp-error') {
+        sftpSetProgress('');
+        alert('SFTP 操作失败 (' + res.action + '): ' + res.message);
+        return true;
+    }
+    return false;
+};
+
+</script>
+<script src="terminals.js?v=rk6"></script>
+</body>
+</html>
