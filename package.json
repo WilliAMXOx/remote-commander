@@ -1,0 +1,85 @@
+{
+  "name": "remote-commander",
+  "version": "1.14.5",
+  "description": "Remote Commander - 远程终端控制台",
+  "main": "main.js",
+  "author": "Remote Commander <williamox@users.noreply.github.com>",
+  "homepage": "https://github.com/WilliAMXOx/remote-commander",
+  "desktopName": "remote-commander",
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "express": "^4.19.2",
+    "iconv-lite": "^0.4.24",
+    "ssh2": "^1.16.0",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "devDependencies": {
+    "electron": "31.7.7"
+  },
+  "build": {
+    "appId": "com.remotecommander.app",
+    "productName": "RemoteCommander",
+    "executableName": "RemoteCommander",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "server.js",
+      "index.html",
+      "terminals.js",
+      "ssh_tasks.json",
+      "package.json",
+      "vendor/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "RemoteCommander-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Remote Commander"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "RemoteCommander",
+      "artifactName": "RemoteCommander-${version}.${ext}",
+      "category": "Utility",
+      "maintainer": "WilliAMXOx <williamox@users.noreply.github.com>",
+      "syncDesktopName": true,
+      "icon": "build/icon.png"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://192.168.3.92:8088/"
+      }
+    ],
+    "npmRebuild": false
+  }
+}
