@@ -1,0 +1,70 @@
+name: Build Linux deb
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要构建的 Linux 版本号（如 1.14.5，会写入 package.json 并用于文件名/tag）'
+        required: true
+        default: '1.14.5'
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Set version
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.version='${{ github.event.inputs.version }}';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+
+      - name: Build .deb
+        run: npx electron-builder --linux deb --publish never
+
+      - name: List artifact
+        run: ls -la dist/*.deb
+
+      - name: Upload .deb to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          TAG="v${VERSION}"
+          if ! gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --title "v${VERSION}" --notes "自动构建 (GitHub Actions)"
+          fi
+          gh release upload "${TAG}" dist/*.deb --repo "${GITHUB_REPOSITORY}" --clobber
+
+      - name: Upload to Tencent Cloud COS
+        env:
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+        run: |
+          pip install coscmd
+          coscmd config -a "${TENCENT_SECRET_ID}" -s "${TENCENT_SECRET_KEY}" -b "ssh-remote-controller-1333945781" -r "ap-beijing"
+          # 上传 deb 安装包
+          for f in dist/*.deb; do
+            coscmd upload "$f" "$(basename "$f")"
+          done
+          # 记录最新 deb 版本号（供 DownloadToUbuntu.sh 读取）
+          echo "${{ github.event.inputs.version }}" > latest-deb-version
+          coscmd upload latest-deb-version latest-deb-version
+          # 同步一键安装脚本
+          coscmd upload DownloadToUbuntu.sh DownloadToUbuntu.sh
+
+      - name: Upload install script to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          gh release upload "v${VERSION}" DownloadToUbuntu.sh latest-deb-version --repo "${GITHUB_REPOSITORY}" --clobber
