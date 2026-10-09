@@ -345,6 +345,21 @@
 
     ingestSsh(data) {
       if (!data) return;
+      // 快速连接(RK)自动填密码：检测到 password 提示时注入写死的默认密码
+      if (this.autoPwd && this.autoPwd.remaining > 0) {
+        this._pwdBuf = (this._pwdBuf || '') + data;
+        if (this._pwdBuf.length > 2048) this._pwdBuf = this._pwdBuf.slice(-1024);
+        if (/[Pp]assword\s*[:：]/.test(this._pwdBuf)) {
+          this._pwdBuf = '';
+          const self = this;
+          setTimeout(() => {
+            if (self.autoPwd && self.autoPwd.remaining > 0) {
+              self.autoPwd.remaining -= 1;
+              self.send({ type: 'raw', payload: utf8ToBase64(self.autoPwd.pwd + '\r') });
+            }
+          }, 150);
+        }
+      }
       this.markBuf += data;
       let out = '';
       const re = /\x1b\]777;RC([A-Za-z0-9]+)=(-?\d+)\x07/g;
@@ -691,6 +706,8 @@
     np.customTitle = 'hzhy@192.168.8.88 经 ' + baseUser + '@' + baseHost;
     if (np.nameEl) np.nameEl.textContent = np.customTitle;
     const run = "ssh -o StrictHostKeyChecking=no hzhy@192.168.8.88";
+    // 写死默认值：检测到 password 提示时自动注入 hzhy（不依赖 sshpass / 公钥），可重试 3 次
+    np.autoPwd = { pwd: 'hzhy', remaining: 3 };
     // 等待新终端通道就绪
     let tries = 0;
     const timer = setInterval(() => {
