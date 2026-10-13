@@ -877,6 +877,18 @@
 .sftp-item .sftp-check { margin:0; flex-shrink:0; cursor:pointer; accent-color:#3B82F6; }
 .sftp-item.sel { background: rgba(59,130,246,.14); }
 .sftp-item.sel .sftp-name { color:#93C5FD; }
+/* 深色发光 tooltip：SFTP 悬停显示完整文件/文件夹名 */
+.sftp-tooltip {
+  position: fixed; z-index: 99999; display: none;
+  max-width: 440px; padding: 6px 10px;
+  background: rgba(10,13,22,.96);
+  border: 1px solid rgba(59,130,246,.75);
+  box-shadow: 0 0 12px rgba(59,130,246,.5), 0 4px 14px rgba(0,0,0,.55);
+  color: #E2E8F0; font-size: 12px; line-height: 1.5;
+  font-family: 'Roboto Mono', monospace;
+  border-radius: 4px; pointer-events: none;
+  word-break: break-all;
+}
 .sftp-controls .tar-btn { background:#172033 !important; border:1px solid #2563EB !important; color:#93C5FD !important; }
 .sftp-controls .tar-btn:hover { background:#1d2c4d !important; box-shadow:0 0 8px rgba(59,130,246,.5); }
 .sftp-selall { display:flex; align-items:center; gap:3px; font-size:11px; color:#94a3b8; margin-left:2px; cursor:pointer; white-space:nowrap; }
@@ -1277,7 +1289,7 @@ const batchMarkWaiters = {};     // 标记 id -> 退出码回调
 let batchMarkBuf = '';           // 退出码标记跨包拼接缓冲
 
 /* ===== V1.11.2 版本检查 ===== */
-const CURRENT_VERSION = new URLSearchParams(location.search).get('appv') || '1.14.5';
+const CURRENT_VERSION = new URLSearchParams(location.search).get('appv') || '1.14.8';
 let lastUpdateInfo = null;       // 最近一次检查发现的新版本信息
 
 // 一次性访问令牌（Electron 主进程通过页面 URL 注入），WS 与 API 请求都携带
@@ -2400,6 +2412,34 @@ function sftpLs(path) {
     sftpSend({ type: 'sftp-ls', path: path || sftpCurrentPath || '.' });
 }
 
+/* ===== SFTP 深色发光 tooltip：悬停显示完整文件/文件夹名 ===== */
+(function () {
+  const tip = document.createElement('div');
+  tip.className = 'sftp-tooltip';
+  document.body.appendChild(tip);
+  const list = document.getElementById('sftpList');
+  if (!list) return;
+  list.addEventListener('mouseover', (e) => {
+    const n = e.target.closest('.sftp-name');
+    if (!n) return;
+    tip.textContent = n.textContent;
+    tip.style.display = 'block';
+  });
+  list.addEventListener('mousemove', (e) => {
+    if (tip.style.display !== 'block') return;
+    tip.style.left = '0px'; tip.style.top = '0px';
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = e.clientX + 14, y = e.clientY + 16;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - 14;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - 16;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  });
+  list.addEventListener('mouseout', (e) => {
+    const fromName = e.target.closest('.sftp-name');
+    const toName = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.sftp-name') : null;
+    if (fromName && !toName) tip.style.display = 'none';
+  });
+})();
 function sftpRefresh() { sftpLs(sftpCurrentPath); }
 
 function sftpGoUp() {
@@ -2437,7 +2477,8 @@ function renderSftpList(path, items) {
                 '<button class="rn" title="重命名">✎</button>' +
                 '<button class="rm" title="删除">🗑</button>' +
             '</span>';
-        row.querySelector('.sftp-name').textContent = item.name;
+        const nameEl = row.querySelector('.sftp-name');
+        nameEl.textContent = item.name;
         const check = row.querySelector('.sftp-check');
         check.addEventListener('click', e => e.stopPropagation());
         check.addEventListener('change', () => {

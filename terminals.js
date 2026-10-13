@@ -717,6 +717,8 @@
         // 等 shell 登录流程/提示符完全就绪；先回车刷出干净提示符，再用 \r 提交整段命令
         setTimeout(() => {
           np.send({ type: 'raw', payload: utf8ToBase64('\r') });
+          // SFTP 面板同步切换到 RK（经主连接附加 hzhy@192.168.8.88）
+          if (window.sftpDoAttach) window.sftpDoAttach('hzhy', '192.168.8.88', 'hzhy', false);
           setTimeout(() => {
             np.send({ type: 'raw', payload: utf8ToBase64(run + '\r') });
           }, 350);
@@ -794,10 +796,16 @@
   /* ---------------- 启动 ---------------- */
   function printBanner(pane) {
     const t = pane.term;
+    const q = new URLSearchParams(location.search);
+    const ver = q.get('appv') || '1.14.7';
+    const appdate = q.get('appdate') || '';
+    const appnotes = q.get('appnotes') || '';
+    const dispW = s => { let w = 0; for (const c of s) w += (c.charCodeAt(0) > 255 ? 2 : 1); return w; };
+    const pad = s => { const w = dispW(s); const l = Math.max(0, Math.floor((40 - w) / 2)); const r = Math.max(0, 40 - w - l); return ' '.repeat(l) + s + ' '.repeat(r); };
     t.writeln('\x1b[32m╔════════════════════════════════════════════════╗\x1b[0m');
-    t.writeln('\x1b[32m║            >> 远程操作系统 V1.11.6             ║\x1b[0m');
-    t.writeln('\x1b[32m║   多标签 / 分屏 / 跨模式混合 / 心跳断线重连    ║\x1b[0m');
-    t.writeln('\x1b[32m║   任务搜索批量执行 / 界面光效 / 版本更新检查   ║\x1b[0m');
+    t.writeln(`\x1b[32m║${pad(`>> 远程操作系统 V${ver}`)}║\x1b[0m`);
+    t.writeln(`\x1b[32m║${pad(appdate ? `版本发布：${appdate}` : '版本发布：—')}║\x1b[0m`);
+    t.writeln(`\x1b[32m║${pad(appnotes || '远程控制 · 简单高效')}║\x1b[0m`);
     t.writeln('\x1b[32m╚════════════════════════════════════════════════╝\x1b[0m');
     t.writeln('');
     t.writeln('\x1b[36m快捷键：Alt+Shift+-/= 分屏 · Alt+方向键 切焦点 · Ctrl+Shift+W 关闭面板 · Ctrl+Shift+T 新标签\x1b[0m');

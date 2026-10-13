@@ -139,7 +139,14 @@ function createWindow() {
     });
 
     mainWindow.setMenuBarVisibility(false);
-    mainWindow.loadURL(`http://127.0.0.1:${servicePort}/?token=${process.env.RC_TOKEN}&appv=${app.getVersion()}`);
+    // 读取 release-meta.json（版本/发布日/更新内容），供启动横幅动态显示；缺失时用默认
+    let meta = { date: '', notes: '' };
+    try {
+      const _m = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'release-meta.json'), 'utf8'));
+      meta.date = _m.date || '';
+      meta.notes = _m.notes || '';
+    } catch (e) { /* 无 meta 文件时保持默认 */ }
+    mainWindow.loadURL(`http://127.0.0.1:${servicePort}/?token=${process.env.RC_TOKEN}&appv=${app.getVersion()}&appdate=${encodeURIComponent(meta.date)}&appnotes=${encodeURIComponent(meta.notes)}`);
 
     // 外部链接交给系统浏览器，应用内只保留本机控制台
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {

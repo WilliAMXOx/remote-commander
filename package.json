@@ -1,6 +1,6 @@
 {
   "name": "remote-commander",
-  "version": "1.14.5",
+  "version": "1.14.8",
   "description": "Remote Commander - 远程终端控制台",
   "main": "main.js",
   "author": "Remote Commander <williamox@users.noreply.github.com>",
@@ -31,6 +31,7 @@
       "index.html",
       "terminals.js",
       "ssh_tasks.json",
+      "release-meta.json",
       "package.json",
       "vendor/**/*",
       "node_modules/**/*"
